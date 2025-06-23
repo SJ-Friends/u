@@ -177,7 +177,7 @@
 
   <button onclick="updateSchedule()">✔️ 수정 완료</button>
   <button id="btnList">📋 목록 보기</button>
-
+<button id="btnDelete" style="background:#e74c3c; color:white; margin-top:30px;">일정삭제</button>
   <div class="modal-overlay" id="qrModal">
     <div class="modal">
       <button class="close-btn" onclick="closeQRModal()">✖</button>
@@ -315,7 +315,14 @@
       QRCode.toCanvas(document.getElementById('qrTelCanvas'), telURI, { width: 240 });
       document.getElementById('qrModal').classList.add('show');
     }
-
+document.getElementById('btnDelete').onclick = async function() {
+      if (!confirm('정말로 이 일정을 삭제하시겠습니까?')) return;
+      const { error } = await supabase.from(config.s_table).delete().eq('id', id);
+      if (error) return alert('삭제 실패: ' + (error.message || ''));
+      alert('일정이 삭제되었습니다!');
+      window.location.href = `list.html?usr=${usrParam}`;
+    };
+    
     function closeQRModal() {
       document.getElementById('qrModal').classList.remove('show');
     }
