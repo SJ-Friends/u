@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <title>로딩 중…</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f9f9f9; padding: 40px; max-width: 600px; margin: auto; }
+    h1 { text-align: center; margin-bottom: 30px; font-size: 1.5em; }
+    .field { margin-bottom: 20px; }
+    label { font-weight: bold; display: block; margin-bottom: 5px; }
+    .btn-group { display: flex; gap: 5px; align-items: center; }
+    input[type="text"] { flex: 1; height: 36px; padding: 5px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+    button { height: 36px; padding: 0 10px; background: #1d72b8; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    button:hover { background: #135a96; }
+    .btn-red { background: #e74c3c; }
+    .btn-red:hover { background: #c0392b; }
+    textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+    .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; }
+    .checkbox-group label { display: flex; align-items: center; gap: 5px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1 id="pageTitle">로딩 중… 프롬프트 작성기</h1>
+
+  <!-- 위치 -->
+  <div class="field">
+    <label>위치</label>
+    <div class="btn-group">
+      <input type="text" id="locaInput"/>
+      <button onclick="addToSentence('loca')">추가</button>
+      <button onclick="removeFromSentence('loca')">제거</button>
+    </div>
+  </div>
+
+  <!-- 업체명 -->
+  <div class="field">
+    <label>업체명</label>
+    <div class="btn-group">
+      <input type="text" id="titleInput"/>
+      <button onclick="addToSentence('title')">추가</button>
+      <button onclick="removeFromSentence('title')">제거</button>
+    </div>
+  </div>
+
+  <!-- 키워드 -->
+  <div class="field">
+    <label>키워드</label>
+    <div class="btn-group">
+      <input type="text" id="kwordInput"/>
+      <button onclick="addToSentence('kword')">추가</button>
+      <button onclick="removeFromSentence('kword')">제거</button>
+    </div>
+  </div>
+
+  <!-- 주문 -->
+  <div class="field">
+    <label>주문</label>
+    <div class="btn-group">
+      <input type="text" id="memoInput"/>
+      <button onclick="addToSentence('memo')">추가</button>
+      <button onclick="removeFromSentence('memo')">제거</button>
+    </div>
+  </div>
+
+  <!-- 스타일 선택 -->
+  <div class="field">
+    <label>스타일 선택</label>
+    <div class="checkbox-group">
+      <label><input type="checkbox" class="styleCheckbox" value="친근하게"/>친근하게</label>
+      <label><input type="checkbox" class="styleCheckbox" value="재미있게"/>재미있게</label>
+      <label><input type="checkbox" class="styleCheckbox" value="젊은감성으로"/>젊은감성으로</label>
+      <label><input type="checkbox" class="styleCheckbox" value="재치있게"/>재치있게</label>
+      <label><input type="checkbox" class="styleCheckbox" value="자세히"/>자세히</label>
+      <label><input type="checkbox" class="styleCheckbox" value="정확한정보만"/>정확한정보만</label>
+    </div>
+  </div>
+
+  <!-- 추가 문장 -->
+  <div class="field">
+    <label>추가 문장</label>
+    <div class="btn-group">
+      <input type="text" id="customSentence"/>
+      <button onclick="addCustomToSentence()">추가</button>
+      <button onclick="removeCustomFromSentence()">제거</button>
+      <button class="btn-red" onclick="saveCustomSentence()">저장</button>
+    </div>
+  </div>
+
+  <!-- 완성된 문장 -->
+  <div class="field">
+    <label>완성된 문장</label>
+    <textarea id="finalSentence" rows="15"></textarea>
+    <div class="btn-group">
+      <button onclick="clearSentence()">지우기</button>
+      <button onclick="copySentence()">복사</button>
+    </div>
+  </div>
+
+  <!-- 리스트로 돌아가기 버튼 -->
+  <div class="field">
+    <button id="btnBack" class="btn-red">리스트로 돌아가기</button>
+  </div>
+
+<script>
+const supabase = window.supabase.createClient(
+  'https://xxmtxuhcdzidhrefrvwf.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4bXR4dWhjZHppZGhyZWZydndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQwODAyNTQsImV4cCI6MjA1OTY1NjI1NH0.TaCCDlJvKrif_pZY038Qkglip8h-Qqjp2w2GlKwvoVg'
+);
+
+// 사용자 파라미터 및 config 로드
+const urlParams = new URLSearchParams(window.location.search);
+const usrParam = urlParams.get('usr');
+const id = urlParams.get("id");
+if (!usrParam) { alert('유효한 사용자 파라미터(usr)가 필요합니다.'); throw new Error('Missing usr parameter'); }
+let config;
+
+async function loadUserConfig() {
+  const { data, error } = await supabase
+    .from('usr')
+    .select('b_name,name,s_table,t_table,i_table,logo')
+    .eq('uid', usrParam)
+    .single();
+  if (error || !data) { alert('사용자 설정 로드 실패'); throw error || new Error(); }
+  config = data;
+  // 헤더/타이틀
+  document.getElementById('pageTitle').textContent = `${config.b_name} 프롬프트 작성기`;
+  document.title = `${config.b_name} 프롬프트 작성기`;
+  // 뒤로가기 버튼
+  document.getElementById('btnBack').onclick = () => location.href = `list.html?usr=${usrParam}`;
+}
+
+// 데이터 로드
+async function loadData() {
+  const { data, error } = await supabase.from(config.s_table).select('*').eq('id', id).single();
+  if (error || !data) { alert('데이터 로드 실패'); return; }
+  document.getElementById('titleInput').value = data.title || '';
+  document.getElementById('locaInput').value = data.loca || '';
+  document.getElementById('memoInput').value = '';
+  document.getElementById('kwordInput').value = data.kword || '';
+
+  const { data: txtData, error: txtError } = await supabase
+    .from(config.t_table)
+    .select('ai1')
+    .order('id', { ascending: false })
+    .limit(1);
+
+  if (!txtError && txtData && txtData.length > 0 && txtData[0].ai1) {
+    document.getElementById('customSentence').value = txtData[0].ai1;
+  }
+}
+
+// 이하 나머지 기능들은 원본과 동일 (문구 조립/복사/저장 등)
+function addToSentence(field) {
+  const textarea = document.getElementById('finalSentence');
+  let value = '';
+  if (field === 'title') value = document.getElementById('titleInput').value + '에 대해 아래를 참고해서 블로그를 작성해줘'+ '\n';
+  else if (field === 'loca') value = document.getElementById('locaInput').value + '에 있는 ';
+  else if (field === 'memo') value = '○ 주문한 메뉴 : ' + document.getElementById('memoInput').value+ '의 비주얼과 맛\n'+ '\n';
+  else if (field === 'kword') value = '○ 키워드는 : ' + document.getElementById('kwordInput').value+ '\n(키워드들은 본문에 자연스럽게 다섯번 이상 넣어서 작성해줘)\n';
+  if (!textarea.value.includes(value)) textarea.value += (textarea.value ? '' : '') + value ;
+}
+
+function removeFromSentence(field) {
+  const textarea = document.getElementById('finalSentence');
+  let value = '';
+  if (field === 'title') value = document.getElementById('titleInput').value + '에 대해 아래를 참고해서 블로그를 작성해줘'+ '\n';
+  else if (field === 'loca') value = document.getElementById('locaInput').value + '에 있는 ';
+  else if (field === 'memo') value = '○ 주문한 메뉴 : ' + document.getElementById('memoInput').value+ '의 비주얼과 맛\n'+ '\n';
+  else if (field === 'kword') value = '○ 키워드는 : ' + document.getElementById('kwordInput').value+ '\n(키워드들은 본문에 자연스럽게 다섯번 이상 넣어서 작성해줘)\n';
+  const escaped = value.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+  textarea.value = textarea.value.replace(new RegExp(escaped, 'g'), '').replace(/\s+/g, '').trim();
+}
+
+const checkboxes = document.querySelectorAll('.styleCheckbox');
+checkboxes.forEach(cb => cb.addEventListener('change', () => {
+  const styles = Array.from(checkboxes).filter(c => c.checked).map(c => c.value);
+  const styleText = styles.length ? `\n[스타일: ${styles.join(', ')}]` : '';
+  const base = document.getElementById('finalSentence').value.split('\n[스타일:')[0].trim();
+  document.getElementById('finalSentence').value = base + styleText + '\n';
+}));
+
+function addCustomToSentence() {
+  const customText = document.getElementById('customSentence').value.trim();
+  if (!customText) return;
+  const textarea = document.getElementById('finalSentence');
+  if (!textarea.value.includes(customText)) textarea.value += (textarea.value ? '' : '') + customText;
+}
+
+function removeCustomFromSentence() {
+  const customText = document.getElementById('customSentence').value.trim();
+  const escaped = customText.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+  document.getElementById('finalSentence').value = document.getElementById('finalSentence').value.replace(new RegExp(escaped, 'g'), '').replace(/\s+/g, '').trim();
+}
+
+async function saveCustomSentence() {
+  const customText = document.getElementById('customSentence').value.trim();
+  if (!customText) { alert('문장을 입력해주세요'); return; }
+  try {
+    const { data: exists } = await supabase.from(config.t_table).select('id').eq('id', id).single();
+    let result;  if (exists) result = await supabase.from(config.t_table).update({ ai1: customText }).eq('id', id);  else result = await supabase.from(config.t_table).insert({ id: id, ai1: customText });
+    if (result.error) alert('저장 실패: ' + (result.error.details || result.error.message));
+    else alert('저장 완료!');
+  } catch (e) {
+    alert('저장 중 오류 발생');
+  }
+}
+
+function clearSentence() {
+  document.getElementById('finalSentence').value = ''; 
+}
+
+function copySentence() {
+  const textarea = document.getElementById('finalSentence');
+  textarea.select();
+  document.execCommand('copy');
+  alert('복사 완료!');
+}
+
+// 최초 실행
+(async () => {
+  await loadUserConfig();
+  await loadData();
+})();
+</script>
+
+</body>
+</html>

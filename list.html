@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <title>로딩 중…</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <style>
+    th:nth-child(3), td:nth-child(3) { min-width: 120px; }
+    th:nth-child(4), td:nth-child(4) { min-width: 80px; }
+    th:nth-child(5), td:nth-child(5) { min-width: 80px; }
+    th:nth-child(8), td:nth-child(8) { min-width: 120px; }
+    th:nth-child(9), td:nth-child(9) { min-width: 90px; }
+    th:nth-child(10), td:nth-child(10) { min-width: 70px; }
+
+    body { font-family: 'Segoe UI', sans-serif; padding: 30px; max-width: 1000px; margin: auto; }
+    .header { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 20px; }
+    .header img { height: 40px; }
+    .header h1 { margin: 0; font-size: 1.6em; }
+    .top-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; }
+    .button-group { display: flex; gap: 10px; align-items: center; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; font-size: 14px; }
+    th { background-color: #f4f4f4; }
+    button { padding: 6px 12px; cursor: pointer; border: none; border-radius: 4px; background-color: #1d72b8; color: white; }
+    button:hover { background-color: #135a96; }
+    select, input[type="checkbox"] { padding: 6px; }
+    label { margin-right: 8px; }
+    .tooltip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
+    .link-button { color: #0077cc; text-decoration: underline; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img id="logoImg" alt="로고" src="logo.jpg"/>
+    <h1 id="pageTitle">일상을 여행처럼 일정 목록</h1>
+  </div>
+
+  <div class="top-bar">
+    <div>
+      <label for="sort">정렬 기준:</label>
+      <select id="sort">
+        <option value="date_s">시작 날짜</option>
+        <option selected value="date_e">종료 날짜</option>
+        <option value="created_at">입력 날짜</option>
+      </select>
+    </div>
+    <div class="button-group">
+      <label><input id="showDone" type="checkbox" checked/> 완료 포함</label>
+      <label><input id="showReserved" type="checkbox"/> 예약완료 포함</label>
+      <button id="btnAdd">➕ 등록하기</button>
+      <button id="btnCal">📅 달력 보기</button>
+      <button id="btnRes">📅 예약캘린더</button>
+    </div>
+  </div>
+
+  <table id="schedule-table">
+    <thead>
+      <tr>
+        <th>완료</th>
+        <th>예약</th>
+        <th>업체명</th>
+        <th>비용</th>
+        <th>위치</th>
+        <th>시작일</th>
+        <th>종료일</th>
+        <th>불가능 요일</th>
+        <th>체험단</th>
+        <th>AI</th>
+        <th>삭제</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    // Supabase 클라이언트 생성
+    const supabase = window.supabase.createClient(
+      'https://xxmtxuhcdzidhrefrvwf.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4bXR4dWhjZHppZGhyZWZydndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQwODAyNTQsImV4cCI6MjA1OTY1NjI1NH0.TaCCDlJvKrif_pZY038Qkglip8h-Qqjp2w2GlKwvoVg'
+    );
+
+    // usr 파라미터 및 사용자 설정 로드
+    const urlParams = new URLSearchParams(window.location.search);
+    const usrParam = urlParams.get('usr');
+    if (!usrParam) {
+      alert('유효한 사용자 파라미터(usr)가 필요합니다.');
+      throw new Error('Missing usr parameter');
+    }
+    let config;
+    async function loadUserConfig() {
+      const { data, error } = await supabase
+        .from('usr')
+        .select('b_name,name,s_table,t_table,i_table,logo')
+        .eq('uid', usrParam)
+        .single();
+      if (error || !data) {
+        alert('사용자 설정을 불러오지 못했습니다.');
+        throw error || new Error('No user data');
+      }
+      config = data;
+      // 헤더/타이틀 업데이트
+      document.getElementById('logoImg').src = config.logo;
+      document.getElementById('pageTitle').textContent = `${config.b_name} 일정 목록`;
+      document.title = `${config.b_name} 일정 목록`;
+    }
+
+    // 천 단위 쉼표 함수
+    function numberWithCommas(x) {
+      return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+
+    const dayNames = ['mon','tue','wed','thu','fri','sat','sun'];
+    const dayKor = { mon:'월', tue:'화', wed:'수', thu:'목', fri:'금', sat:'토', sun:'일' };
+
+    // 일정 불러오기
+    async function loadSchedules(sortBy = 'date_e') {
+      const showDone = document.getElementById('showDone').checked;
+      const showReserved = document.getElementById('showReserved').checked;
+
+      let { data, error } = await supabase.from(config.s_table)
+        .select('*')
+        .order(sortBy, { ascending: true });
+      if (error) return alert('데이터 불러오기 실패');
+
+      if (!showDone) data = data.filter(item => !item.done);
+      if (!showReserved) data = data.filter(item => !item.res_c);
+
+      const tbody = document.querySelector('#schedule-table tbody');
+      tbody.innerHTML = '';
+
+      data.forEach(item => {
+        const unavailable = dayNames.filter(d => item[d] !== 'Y').map(d => dayKor[d]).join(', ');
+        const mapQuery = encodeURIComponent(`${item.title} ${item.loca}`);
+        const mapLink = `https://map.naver.com/v5/search/${mapQuery}`;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input type="checkbox" ${item.done ? 'checked' : ''} onchange="toggleDone(${item.id}, this.checked)"></td>
+          <td><input type="checkbox" ${item.res_c ? 'checked' : ''} onchange="toggleRes(${item.id}, this.checked)"></td>
+          <td><a href='edit.html?id=${item.id}&usr=${usrParam}'>${item.title}</a></td>
+          <td>${numberWithCommas(parseInt(item.cost)||0)}</td>
+          <td><span class="link-button" onclick="window.open('${mapLink}','_blank')">${item.loca}</span></td>
+          <td>${item.date_s}</td>
+          <td>${item.date_ec || item.date_e}</td>
+          <td>${unavailable}</td>
+          <td>${item.office||''}</td>
+          <td><button onclick="location.href='goai.html?id=${item.id}&usr=${usrParam}'">AI</button></td>
+          <td><button onclick="deleteSchedule(${item.id})">삭제</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // 삭제 및 토글
+    async function deleteSchedule(id) {
+      if (!confirm('정말 삭제하시겠습니까?')) return;
+      await supabase.from(config.s_table).delete().eq('id', id);
+      loadSchedules(document.getElementById('sort').value);
+    }
+    async function toggleDone(id, checked) {
+      await supabase.from(config.s_table).update({ done: checked }).eq('id', id);
+    }
+    async function toggleRes(id, checked) {
+      await supabase.from(config.s_table).update({ res_c: checked }).eq('id', id);
+    }
+
+    // 초기 로딩
+    document.getElementById('sort').addEventListener('change', e => loadSchedules(e.target.value));
+    document.getElementById('showDone').addEventListener('change', () => loadSchedules(document.getElementById('sort').value));
+    document.getElementById('showReserved').addEventListener('change', () => loadSchedules(document.getElementById('sort').value));
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadUserConfig();
+      document.getElementById('btnAdd').onclick = () => location.href = `index.html?usr=${usrParam}`;
+      document.getElementById('btnCal').onclick = () => location.href = `cal.html?usr=${usrParam}`;
+      document.getElementById('btnRes').onclick = () => location.href = `cal_res.html?usr=${usrParam}`;
+      loadSchedules('date_e');
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <title>로딩 중…</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f9f9f9; padding: 40px; max-width: 600px; margin: auto; }
+    .header { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 30px; }
+    .header img { height: 40px; }
+    .header h1 { margin: 0; font-size: 1.5em; }
+    .form-group { display: flex; flex-direction: column; margin-bottom: 20px; }
+    label { font-weight: bold; margin-bottom: 5px; }
+    input[type="text"], input[type="date"], input[type="time"], input[type="number"], textarea, select {
+      padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px;
+    }
+    textarea { resize: vertical; }
+    .days-container { display: flex; flex-wrap: wrap; gap: 10px; }
+    .day-label { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+    button {
+      padding: 12px 20px; background-color: #1d72b8; color: white; border: none;
+      border-radius: 6px; cursor: pointer; font-size: 15px; width: 100%; margin-bottom: 10px;
+    }
+    button:hover { background-color: #135a96; }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(0,0,0,0.5);
+      z-index: 999;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .modal-overlay.show {
+      display: flex;
+      opacity: 1;
+    }
+    .modal {
+      position: relative;
+      background: #fff;
+      padding: 30px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      animation: fadeIn 0.3s ease;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+    }
+    .modal .close-btn {
+      align-self: flex-end;
+      font-size: 24px;
+      font-weight: bold;
+      background: none;
+      border: none;
+      color: #000;
+      line-height: 1;
+      padding: 0;
+      margin-bottom: 10px;
+      cursor: pointer;
+      z-index: 1001;
+    }
+    @keyframes fadeIn {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img id="logoImg" alt="로고" src="logo.jpg"/>
+    <h1 id="pageTitle">로딩 중… 일정 관리</h1>
+  </div>
+
+  <div class="form-group">
+    <label for="title">업체명</label>
+    <input id="title" type="text"/>
+  </div>
+
+  <div class="form-group">
+    <label for="loca">위치</label>
+    <div style="display: flex; gap: 10px; align-items: center;">
+      <input id="loca" type="text" style="flex: 1; height: 20px; display: flex; align-items: center;"/>
+      <button id="mapBtn" title="지도에서 보기" style="height: 40px; padding: 0 12px; font-size: 18px; display: flex; align-items: center; justify-content: center;margin-top: 9px;">📍</button>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>기간</label>
+    <div style="display: flex; gap: 10px;">
+      <input id="date_s" type="date"/> ~ <input id="date_e" type="date"/>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>가능요일</label>
+    <div class="days-container">
+      <label class="day-label"><input id="mon" type="checkbox"/> 월</label>
+      <label class="day-label"><input id="tue" type="checkbox"/> 화</label>
+      <label class="day-label"><input id="wed" type="checkbox"/> 수</label>
+      <label class="day-label"><input id="thu" type="checkbox"/> 목</label>
+      <label class="day-label"><input id="fri" type="checkbox"/> 금</label>
+      <label class="day-label"><input id="sat" type="checkbox"/> 토</label>
+      <label class="day-label"><input id="sun" type="checkbox"/> 일</label>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="cost">지원금액</label>
+    <input id="cost" type="text"/>
+  </div>
+
+  <div class="form-group">
+    <label for="tel">신청 연락처</label>
+    <div style="display: flex; gap: 10px; align-items: center; margin-top: 9px; height: 40px;">
+      <input id="tel" inputmode="numeric" pattern="[0-9]*" style="flex: 1;" type="text"/>
+      <button id="smsLink" style="height: 40px; padding: 0 12px; font-size: 18px; display: flex; align-items: center; justify-content: center;margin-top: 9px;">📩</button>
+      <button id="callLink" style="height: 40px; padding: 0 12px; font-size: 18px; display: flex; align-items: center; justify-content: center;margin-top: 9px;">📞</button>
+      <button onclick="openQRModal()" style="height: 40px; padding: 0 12px; font-size: 18px; display: flex; align-items: center; justify-content: center;margin-top: 9px;">📷</button>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>예약 정보</label>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+      <input id="res_d" type="date" placeholder="예약일자" style="flex: 1"/>
+      <input id="res_t" type="time" placeholder="시간" style="flex: 1" value="17:00"/>
+      <input id="res_p" type="number" placeholder="인원" style="flex: 1" value="2"/>
+      <label style="display: flex; align-items: center; gap: 5px;"><input id="res_c" type="checkbox"/> 예약확정</label>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="office">체험단</label>
+    <select id="office">
+      <option value="강남맛집">강남맛집</option>
+      <option value="리뷰노트">리뷰노트</option>
+      <option value="몬스터">몬스터</option>
+      <option value="체험뷰">체험뷰</option>
+      <option value="가보자">가보자</option>
+      <option value="톡톡">톡톡</option>
+      <option value="4블">4블</option>
+      <option value="미블">미블</option>
+      <option value="디너">디너</option>
+      <option value="오히려">오히려</option>
+      <option value="슈퍼멤버스">슈퍼멤버스</option>
+      <option value="톡톡">톡톡</option>
+      <option value="기타">기타</option>
+    </select>
+  </div>
+
+  <!-- ✨ 키워드 입력 추가 -->
+  <div class="form-group">
+    <label for="kword">키워드</label>
+    <input id="kword" type="text"/>
+  </div>
+
+  <div class="form-group">
+    <label for="link">링크</label>
+    <input id="link" type="text" placeholder="https://example.com" oninput="showLink()"/>
+    <div id="linkArea" style="margin-top: 8px;"></div>
+  </div>
+
+  <div class="form-group">
+    <label for="memo">Memo</label>
+    <textarea id="memo" rows="10"></textarea>
+  </div>
+
+  <div class="form-group">
+    <label><input id="done" type="checkbox"/> 완료 여부</label>
+  </div>
+
+  <button onclick="updateSchedule()">✔️ 수정 완료</button>
+  <button id="btnList">📋 목록 보기</button>
+
+  <div class="modal-overlay" id="qrModal">
+    <div class="modal">
+      <button class="close-btn" onclick="closeQRModal()">✖</button>
+      <h2>📱 전화 & 문자 QR</h2>
+      <div style="display: flex; gap: 30px; justify-content: center;">
+        <div><p>📞 전화</p><canvas id="qrTelCanvas"></canvas></div>
+        <div><p>💬 문자</p><canvas id="qrSmsCanvas"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const supabase = window.supabase.createClient(
+      'https://xxmtxuhcdzidhrefrvwf.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4bXR4dWhjZHppZGhyZWZydndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQwODAyNTQsImV4cCI6MjA1OTY1NjI1NH0.TaCCDlJvKrif_pZY038Qkglip8h-Qqjp2w2GlKwvoVg'
+    );
+
+    // === 사용자 파라미터 및 테이블 동적 참조 ===
+    const urlParams = new URLSearchParams(window.location.search);
+    const usrParam = urlParams.get('usr');
+    const id = urlParams.get('id');
+    const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+    let config;
+
+    async function loadUserConfig() {
+      const { data, error } = await supabase
+        .from('usr')
+        .select('b_name,name,s_table,t_table,i_table,logo')
+        .eq('uid', usrParam)
+        .single();
+      if (error || !data) {
+        alert('사용자 설정을 불러오지 못했습니다.');
+        throw error || new Error('No user data');
+      }
+      config = data;
+      // 헤더 및 타이틀 업데이트
+      document.getElementById('logoImg').src = config.logo;
+      document.getElementById('pageTitle').textContent = `${config.b_name} 일정 관리`;
+      document.title = `${config.b_name} 일정 관리`;
+      // 목록 보기 버튼 usr 파라미터 유지
+      document.getElementById('btnList').onclick = () => location.href = `list.html?usr=${usrParam}`;
+    }
+
+    function showLink() {
+      const linkValue = document.getElementById('link').value.trim();
+      const linkArea = document.getElementById('linkArea');
+      if (linkValue.startsWith('http://') || linkValue.startsWith('https://')) {
+        linkArea.innerHTML = `<a href="${linkValue}" target="_blank">${linkValue}</a>`;
+      } else {
+        linkArea.innerHTML = '';
+      }
+    }
+
+    async function loadData() {
+      // ✅ 테이블명 동적으로 변경!
+      const { data, error } = await supabase.from(config.s_table).select('*').eq('id', id).single();
+      if (error || !data) return alert('데이터 로드 실패');
+
+      document.getElementById('title').value = data.title;
+      document.getElementById('loca').value = data.loca;
+      document.getElementById('date_s').value = data.date_s;
+      document.getElementById('date_e').value = data.date_e;
+      document.getElementById('cost').value = data.cost;
+      document.getElementById('tel').value = data.tel || '';
+      document.getElementById('office').value = data.office || '기타';
+      document.getElementById('memo').value = data.memo;
+      document.getElementById('done').checked = data.done === true;
+      document.getElementById('link').value = data.link || '';
+      document.getElementById('kword').value = data.kword || '';
+      showLink();
+
+      document.getElementById('res_d').value = data.res_d || '';
+      document.getElementById('res_t').value = data.res_t || '17:00';
+      document.getElementById('res_p').value = data.res_p || '2';
+      document.getElementById('res_c').checked = data.res_c === true;
+
+      const cleaned = (data.tel || '').replace(/[^0-9]/g, '');
+      if (cleaned) {
+        const resDate = new Date(data.res_d || '');
+        const m = resDate.getMonth() + 1;
+        const d = resDate.getDate();
+        const weekday = ['일', '월', '화', '수', '목', '금', '토'];
+        const dayName = weekday[resDate.getDay()];
+        const t = (data.res_t || '17:00').split(':');
+        const h = parseInt(t[0], 10);
+        const min = parseInt(t[1], 10);
+        const hourStr = h > 12 ? `오후 ${h - 12}` : `오전 ${h}`;
+        const timeStr = min === 0 ? `${hourStr}시` : `${hourStr}시 ${min}분`;
+        const smsText = `안녕하세요 '${data.title}'사장님 \n'${data.office}' 블로그체험단 '${config.b_name} ${config.name}'입니다.\n${m}월 ${d}일(${dayName}) ${timeStr} ${data.res_p || 2}명\n예약가능할까요?`;
+        const smsLink = `sms:${cleaned}?body=${encodeURIComponent(smsText)}`;
+        document.getElementById('smsLink').onclick = () => window.location.href = smsLink;
+        document.getElementById('callLink').onclick = () => window.location.href = `tel:${cleaned}`;
+      }
+
+      days.forEach(day => {
+        document.getElementById(day).checked = data[day] === 'Y';
+      });
+    }
+
+    document.getElementById('mapBtn').onclick = function () {
+      const title = document.getElementById('title').value.trim();
+      const loca = document.getElementById('loca').value.trim();
+      if (!title || !loca) {
+        alert("업체명과 위치를 모두 입력해주세요");
+        return;
+      }
+      const query = encodeURIComponent(`${title} ${loca}`);
+      window.open(`https://map.naver.com/v5/search/${query}`, '_blank');
+    };
+
+    function openQRModal() {
+      const tel = document.getElementById('tel').value.trim().replace(/[^0-9]/g, '');
+      if (!tel) return alert('전화번호를 입력해주세요');
+      const title = document.getElementById('title').value.trim();
+      const office = document.getElementById('office').value;
+      const resDateStr = document.getElementById('res_d').value;
+      if (!resDateStr) return alert('예약 날짜를 입력해주세요');
+      const d = new Date(resDateStr);
+      if (isNaN(d.getTime())) return alert('유효하지 않은 날짜입니다');
+      const m = d.getMonth() + 1;
+      const day = d.getDate();
+      const weekday = ['일', '월', '화', '수', '목', '금', '토'];
+      const dayName = weekday[d.getDay()];
+      const timeParts = document.getElementById('res_t').value.split(':');
+      const h = parseInt(timeParts[0]);
+      const min = parseInt(timeParts[1]);
+      const hourStr = h > 12 ? `오후 ${h - 12}` : `오전 ${h}`;
+      const timeStr = min === 0 ? `${hourStr}시` : `${hourStr}시 ${min}분`;
+      const res_p = document.getElementById('res_p').value || '2';
+      // 텍스트에 config 정보 반영
+      const smsText = `안녕하세요 '${title}'사장님 \n'${office}' 블로그체험단 '${config.b_name} ${config.name}'입니다.\n${m}월 ${day}일(${dayName}) ${timeStr} ${res_p}명\n예약가능할까요?`;
+      const smsURI = `sms:${tel}?body=${encodeURIComponent(smsText)}`;
+      const telURI = `tel:${tel}`;
+      QRCode.toCanvas(document.getElementById('qrSmsCanvas'), smsURI, { width: 240 });
+      QRCode.toCanvas(document.getElementById('qrTelCanvas'), telURI, { width: 240 });
+      document.getElementById('qrModal').classList.add('show');
+    }
+
+    function closeQRModal() {
+      document.getElementById('qrModal').classList.remove('show');
+    }
+
+    async function updateSchedule() {
+      const title = document.getElementById('title').value.trim();
+      const loca = document.getElementById('loca').value.trim();
+      const date_s = document.getElementById('date_s').value;
+      const date_e = document.getElementById('date_e').value;
+      const cost = document.getElementById('cost').value.trim();
+      const tel = document.getElementById('tel').value.trim();
+      const office = document.getElementById('office').value;
+      const memo = document.getElementById('memo').value.trim();
+      const done = document.getElementById('done').checked;
+      const res_d = document.getElementById('res_d').value;
+      const res_t = document.getElementById('res_t').value;
+      const res_p = document.getElementById('res_p').value;
+      const res_c = document.getElementById('res_c').checked;
+      const link = document.getElementById('link').value.trim();
+      const kword = document.getElementById('kword').value.trim();
+
+      const dayValues = {};
+      days.forEach(day => {
+        dayValues[day] = document.getElementById(day).checked ? 'Y' : null;
+      });
+
+      // ✅ 테이블명 동적으로 변경!
+      const { error } = await supabase.from(config.s_table).update({
+        title, loca, date_s, date_e, cost, tel, office, memo, done, res_d, res_t, res_p, res_c, link, kword, ...dayValues
+      }).eq('id', id);
+
+      if (error) return alert('수정 실패');
+      alert('수정 완료!');
+      window.location.reload();
+    }
+
+    // 최초 실행 순서: 사용자 설정 → 데이터 로드
+    (async () => {
+      if (!usrParam) {
+        alert('유효한 사용자 파라미터(usr)가 필요합니다.');
+        throw new Error('Missing usr parameter');
+      }
+      await loadUserConfig();
+      await loadData();
+    })();
+  </script>
+</body>
+</html>

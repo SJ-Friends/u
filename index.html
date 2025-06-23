@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <title>로딩 중…</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f9f9f9; padding: 40px; max-width: 600px; margin: auto; }
+    .header { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 30px; }
+    .header img { height: 40px; }
+    .header h1 { margin: 0; font-size: 1.5em; }
+    .form-group { display: flex; flex-direction: column; margin-bottom: 20px; }
+    label { font-weight: bold; margin-bottom: 5px; }
+    input[type="text"], input[type="date"], textarea, select {
+      padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px;
+    }
+    textarea { resize: vertical; }
+    .days-container { display: flex; flex-wrap: wrap; gap: 10px; }
+    .day-label { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+    button {
+      padding: 12px 20px; background-color: #1d72b8; color: white; border: none;
+      border-radius: 6px; cursor: pointer; font-size: 15px; width: 100%; margin-bottom: 10px;
+    }
+    button:hover { background-color: #135a96; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img id="logoImg" alt="로고" src="logo.jpg"/>
+    <h1 id="pageTitle">로딩 중… 일정 등록</h1>
+  </div>
+
+  <div class="form-group">
+    <label for="title">업체명</label>
+    <input id="title" type="text"/>
+  </div>
+
+  <div class="form-group">
+    <label for="loca">위치</label>
+    <input id="loca" type="text"/>
+  </div>
+
+  <div class="form-group">
+    <label>기간</label>
+    <div style="display: flex; gap: 10px;">
+      <input id="date_s" type="date"/> ~ <input id="date_e" type="date"/>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>가능요일</label>
+    <div class="days-container">
+      <label class="day-label"><input checked id="mon" type="checkbox"/> 월</label>
+      <label class="day-label"><input checked id="tue" type="checkbox"/> 화</label>
+      <label class="day-label"><input checked id="wed" type="checkbox"/> 수</label>
+      <label class="day-label"><input checked id="thu" type="checkbox"/> 목</label>
+      <label class="day-label"><input checked id="fri" type="checkbox"/> 금</label>
+      <label class="day-label"><input checked id="sat" type="checkbox"/> 토</label>
+      <label class="day-label"><input checked id="sun" type="checkbox"/> 일</label>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="cost">지원금액</label>
+    <input id="cost" type="text"/>
+  </div>
+
+  <div class="form-group">
+    <label for="tel">신청 연락처</label>
+    <input id="tel" inputmode="numeric" pattern="[0-9]*" type="text"/>
+  </div>
+
+  <div class="form-group">
+    <label for="office">체험단</label>
+    <select id="office">
+      <option value="강남맛집">강남맛집</option>
+      <option value="리뷰노트">리뷰노트</option>
+      <option value="몬스터">몬스터</option>
+      <option value="체험뷰">체험뷰</option>
+      <option value="가보자">가보자</option>
+      <option value="톡톡">톡톡</option>
+      <option value="4블">4블</option>
+      <option value="미블">미블</option>
+      <option value="디너">디너</option>
+      <option value="오히려">오히려</option>
+      <option value="슈퍼멤버스">슈퍼멤버스</option>
+      <option value="톡톡">톡톡</option>
+      <option value="기타">기타</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="kword">키워드</label>
+    <input id="kword" type="text"/>
+  </div>
+
+  <div class="form-group">
+    <label for="link">링크</label>
+    <input id="link" type="text" placeholder="https://example.com" oninput="showLink()"/>
+    <div id="linkArea" style="margin-top: 8px;"></div>
+  </div>
+
+  <div class="form-group">
+    <label for="memo">Memo</label>
+    <textarea id="memo" rows="10"></textarea>
+  </div>
+
+  <button onclick="submitForm()">➕ 등록하기</button>
+  <button id="btnList">📋 목록 보기</button>
+
+  <script>
+    const supabase = window.supabase.createClient(
+      'https://xxmtxuhcdzidhrefrvwf.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4bXR4dWhjZHppZGhyZWZydndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQwODAyNTQsImV4cCI6MjA1OTY1NjI1NH0.TaCCDlJvKrif_pZY038Qkglip8h-Qqjp2w2GlKwvoVg'
+    );
+
+    // URL에서 usr 파라미터 추출
+    const urlParams = new URLSearchParams(window.location.search);
+    const usrParam = urlParams.get('usr');
+    if (!usrParam) {
+      alert('유효한 사용자 파라미터(usr)가 필요합니다.');
+      throw new Error('Missing usr parameter');
+    }
+
+    // 사용자 설정 로드
+    let config;
+    async function loadUserConfig() {
+      const { data, error } = await supabase
+        .from('usr')
+        .select('b_name,name,s_table,t_table,i_table,logo')
+        .eq('uid', usrParam)
+        .single();
+      if (error || !data) {
+        console.error('사용자 설정 로드 에러:', error);
+        alert('사용자 설정을 불러오지 못했습니다.');
+        throw error || new Error('No user data');
+      }
+      config = data;
+    }
+
+    async function init() {
+      await loadUserConfig();
+      // 헤더 및 타이틀 업데이트
+      document.getElementById('logoImg').src = config.logo;
+      document.getElementById('pageTitle').textContent = `${config.b_name} 일정 등록`;
+      document.title = `${config.b_name} 일정 등록`;
+      // 목록 보기 버튼에 usr 파라미터 유지
+      document.getElementById('btnList').onclick = () => location.href = `list.html?usr=${usrParam}`;
+      // 기본 날짜 설정
+      document.getElementById('date_s').value = new Date().toISOString().slice(0, 10);
+    }
+    init();
+
+    const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+    function showLink() {
+      const linkValue = document.getElementById('link').value.trim();
+      const linkArea = document.getElementById('linkArea');
+      if (linkValue.startsWith('http://') || linkValue.startsWith('https://')) {
+        linkArea.innerHTML = `<a href="${linkValue}" target="_blank">${linkValue}</a>`;
+      } else {
+        linkArea.innerHTML = '';
+      }
+    }
+
+    async function submitForm() {
+      const title = document.getElementById('title').value.trim();
+      const loca = document.getElementById('loca').value.trim();
+      const date_s = document.getElementById('date_s').value;
+      const date_e = document.getElementById('date_e').value;
+      const cost = document.getElementById('cost').value.trim();
+      const tel = document.getElementById('tel').value.trim();
+      const office = document.getElementById('office').value;
+      const kword = document.getElementById('kword').value.trim();
+      const link = document.getElementById('link').value.trim();
+      const memo = document.getElementById('memo').value.trim();
+
+      const dayValues = {};
+      days.forEach(day => {
+        dayValues[day] = document.getElementById(day).checked ? 'Y' : null;
+      });
+
+      if (!title || !loca || !date_s || !date_e) {
+        alert('필수 항목을 모두 입력해주세요.');
+        return;
+      }
+
+      const { error } = await supabase.from(config.s_table).insert([{ ...{
+        title, loca, date_s, date_e, cost, tel, office, kword, link, memo
+      }, ...dayValues }]);
+
+      if (error) {
+        console.error(error);
+        alert('등록 실패: 콘솔 확인');
+      } else {
+        alert('등록 완료!');
+        location.href = `cal.html?usr=${usrParam}`;
+      }
+    }
+  </script>
+</body>
+</html>

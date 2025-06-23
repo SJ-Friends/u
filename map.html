@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>로딩 중…</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    #map { width: 100%; height: 70vh; }
+    .filter-bar {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      padding: 10px;
+      background: #f9f9f9;
+      font-size: 14px;
+    }
+    #list {
+      padding: 20px;
+      max-width: 1000px;
+      margin: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+    th { background: #f2f2f2; }
+    .fail { color: red; }
+    .naver-link {
+      color: #0077cc;
+      text-decoration: underline;
+      font-size: 12px;
+    }
+  </style>
+  <script type="text/javascript"
+    src="//dapi.kakao.com/v2/maps/sdk.js?appkey=a49fe18b80104f2300aeaadfc1cd9924&libraries=services">
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <h2 style="text-align:center;" id="pageTitle">로딩 중… map.</h2>
+
+  <div class="filter-bar">
+    <label><input type="checkbox" id="showDone" checked> 완료 포함</label>
+    <label>
+      <input type="checkbox" id="showPossibleOnly"> 방문가능만
+      <input type="date" id="possibleDate" />
+    </label>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="list">
+    <h3>📝 데이터 목록</h3>
+    <table>
+      <thead>
+        <tr><th>상호명</th><th>지역</th><th>상태</th><th>네이버 검색</th></tr>
+      </thead>
+      <tbody id="success-list"></tbody>
+    </table>
+
+    <h3>❗ 검색 실패 목록</h3>
+    <table>
+      <thead>
+        <tr><th>상호명</th><th>지역</th><th>상태</th><th>네이버 검색</th></tr>
+      </thead>
+      <tbody id="fail-list"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const supabase = window.supabase.createClient(
+      'https://xxmtxuhcdzidhrefrvwf.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4bXR4dWhjZHppZGhyZWZydndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQwODAyNTQsImV4cCI6MjA1OTY1NjI1NH0.TaCCDlJvKrif_pZY038Qkglip8h-Qqjp2w2GlKwvoVg'
+    );
+
+    // === usr 파라미터 및 사용자 설정(config) ===
+    const urlParams = new URLSearchParams(window.location.search);
+    const usrParam = urlParams.get('usr');
+    if (!usrParam) {
+      alert('유효한 사용자 파라미터(usr)가 필요합니다.');
+      throw new Error('Missing usr parameter');
+    }
+    let config;
+    async function loadUserConfig() {
+      const { data, error } = await supabase
+        .from('usr')
+        .select('b_name,name,s_table,t_table,i_table,logo')
+        .eq('uid', usrParam)
+        .single();
+      if (error || !data) {
+        alert('사용자 설정을 불러오지 못했습니다.');
+        throw error || new Error('No user data');
+      }
+      config = data;
+      // 타이틀 동적 반영
+      document.getElementById('pageTitle').textContent = `${config.b_name} map.`;
+      document.title = `${config.b_name} map.`;
+    }
+
+    let map, markers = [], openInfoWindow = null;
+    function initMap() {
+      map = new kakao.maps.Map(
+        document.getElementById('map'),
+        { center: new kakao.maps.LatLng(37.5665, 126.9780), level: 5 }
+      );
+    }
+
+    const possibleDateInput = document.getElementById('possibleDate');
+    possibleDateInput.value = new Date().toISOString().slice(0,10);
+    const showPossibleOnly = document.getElementById('showPossibleOnly');
+    const showDone = document.getElementById('showDone');
+
+    async function loadAndDisplayMarkers() {
+      if (!config) return;
+      // 지도 & 목록 초기화
+      if (markers.length) markers.forEach(m => m.setMap(null));
+      markers = [];
+      document.getElementById('success-list').innerHTML = '';
+      document.getElementById('fail-list').innerHTML = '';
+
+      // === 동적으로 config.s_table 참조 ===
+      const { data, error } = await supabase
+        .from(config.s_table)
+        .select('id, title, loca, done, res_c, date_s, date_e, mon, tue, wed, thu, fri, sat, sun');
+      if (error) return alert('DB 데이터 불러오기 실패!');
+
+      let filtered = data;
+      if (showPossibleOnly.checked) {
+        const selDate = new Date(possibleDateInput.value);
+        const dayMap = {0:'sun',1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat'};
+        const dow = dayMap[selDate.getDay()];
+
+        filtered = data.filter(item => {
+          if (item.done || item.res_c) return false;
+          const start = new Date(item.date_s), end = new Date(item.date_e);
+          if (selDate < start || selDate > end) return false;
+          if (item[dow] !== 'Y') return false;
+          return true;
+        });
+      } else {
+        filtered = data.filter(item => showDone.checked || item.done !== true);
+      }
+
+      const places = new kakao.maps.services.Places();
+      const bounds = new kakao.maps.LatLngBounds();
+
+      filtered.forEach(item => {
+        const keyword = `${item.title} ${item.loca}`.trim();
+        if (!keyword) return;
+        places.keywordSearch(keyword, (result, status) => {
+          if (status === kakao.maps.services.Status.OK) {
+            const coords = new kakao.maps.LatLng(result[0].y, result[0].x);
+            const marker = new kakao.maps.Marker({ map, position: coords, title: item.title });
+            markers.push(marker);
+
+            const infoWindow = new kakao.maps.InfoWindow({
+              content: `<div style="padding:5px;font-size:14px;">
+                          <a href="edit.html?id=${item.id}&usr=${usrParam}" target="_blank" style="color:blue;text-decoration:none;">
+                            <b>${item.title}</b><br>${item.loca}
+                          </a>
+                        </div>`
+            });
+            kakao.maps.event.addListener(marker, 'click', () => {
+              if (openInfoWindow) openInfoWindow.close();
+              infoWindow.open(map, marker);
+              openInfoWindow = infoWindow;
+            });
+
+            bounds.extend(coords);
+            map.setBounds(bounds);
+
+            // 성공 리스트
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td><a href="edit.html?id=${item.id}&usr=${usrParam}" target="_blank">${item.title}</a></td>
+              <td>${item.loca}</td><td>✅ 성공</td>
+              <td><a class="naver-link" href="https://map.naver.com/v5/search/${encodeURIComponent(keyword)}" target="_blank">네이버지도</a></td>
+            `;
+            document.getElementById('success-list').appendChild(tr);
+
+          } else {
+            // 실패 리스트
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td class="fail"><a href="edit.html?id=${item.id}&usr=${usrParam}" target="_blank">${item.title}</a></td>
+              <td class="fail">${item.loca}</td><td class="fail">❌ 실패</td>
+              <td><a class="naver-link" href="https://map.naver.com/v5/search/${encodeURIComponent(keyword)}" target="_blank">네이버지도</a></td>
+            `;
+            document.getElementById('fail-list').appendChild(tr);
+          }
+        });
+      });
+    }
+
+    showPossibleOnly.addEventListener('change', () => { showDone.checked = false; loadAndDisplayMarkers(); });
+    showDone.addEventListener('change', () => { showPossibleOnly.checked = false; loadAndDisplayMarkers(); });
+    possibleDateInput.addEventListener('change', loadAndDisplayMarkers);
+
+    // 최초 실행: 사용자 설정 → 지도 → 마커
+    (async () => {
+      await loadUserConfig();
+      initMap();
+      loadAndDisplayMarkers();
+    })();
+  </script>
+</body>
+</html>
