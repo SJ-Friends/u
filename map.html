@@ -45,7 +45,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-  <h2 style="text-align:center;" id="pageTitle">로딩 중… map.</h2>
+  <h2 style="text-align:center;" id="pageTitle">로딩 중… map</h2>
 
   <div class="filter-bar">
     <label><input type="checkbox" id="showDone" checked> 완료 포함</label>
@@ -101,8 +101,8 @@
       }
       config = data;
       // 타이틀 동적 반영
-      document.getElementById('pageTitle').textContent = `${config.b_name} map.`;
-      document.title = `${config.b_name} map.`;
+      document.getElementById('pageTitle').textContent = `${config.b_name} map`;
+      document.title = `${config.b_name} map`;
     }
 
     let map, markers = [], openInfoWindow = null;
