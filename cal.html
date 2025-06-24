@@ -181,7 +181,7 @@
     loadUserConfig().then(() => {
       // header 및 title 업데이트
       document.getElementById('logoImg').src = config.logo;
-      document.getElementById('pageTitle').textContent = `${config.b_name} 캘린더 보기.`;
+      document.getElementById('pageTitle').textContent = `${config.b_name} 캘린더 보기`;
       document.title = `${config.b_name} 캘린더 보기`;
       // 내비게이션 버튼 업데이트
       document.getElementById('btnNew').onclick = () => location.href = `index.html?usr=${usrParam}`;
