@@ -152,97 +152,88 @@
       const places = new kakao.maps.services.Places();
       const bounds = new kakao.maps.LatLngBounds();
 
-filtered.forEach(item => {
-  const keyword = `${item.title} ${item.loca}`.trim();
-  if (!keyword) return;
+      // --- 여기부터 핵심 로직 ---
+      filtered.forEach(item => {
+        const keyword = `${item.title} ${item.loca}`.trim();
 
-  function getRetryKeyword(item) {
-    const firstSpaceIdx = item.title.indexOf(' ');
-    if (firstSpaceIdx > 0) {
-      const shortTitle = item.title.slice(0, firstSpaceIdx);
-      return `${shortTitle} ${item.loca}`.trim();
-    }
-    return null; // 공백이 없는 경우에는 null 리턴
-  }
+        // 공백 전까지만 상호명 추출 함수 (내부에서만 사용)
+        function getRetryKeyword() {
+          const firstSpaceIdx = item.title.indexOf(' ');
+          if (firstSpaceIdx > 0) {
+            const shortTitle = item.title.slice(0, firstSpaceIdx);
+            return `${shortTitle} ${item.loca}`.trim();
+          }
+          return null; // 공백이 없는 경우에는 null 리턴
+        }
 
-  function onSearch(result, status, usedRetry) {
-    if (status === kakao.maps.services.Status.OK) {
-      // 성공 처리
-      const coords = new kakao.maps.LatLng(result[0].y, result[0].x);
-      const marker = new kakao.maps.Marker({ map, position: coords, title: item.title });
-      markers.push(marker);
+        function addSuccessRow(usedRetry, markerCoords) {
+          const tr = document.createElement('tr');
+          const searchKeyword = usedRetry ? getRetryKeyword() : keyword;
+          tr.innerHTML = `
+            <td><a href="edit.html?id=${item.id}&usr=${usrParam}" target="_blank">${item.title}</a></td>
+            <td>${item.loca}</td>
+            <td>✅${usedRetry ? '(재시도)' : ''}</td>
+            <td><a class="naver-link" href="https://map.naver.com/v5/search/${encodeURIComponent(searchKeyword)}" target="_blank">네이버지도</a></td>
+          `;
+          document.getElementById('success-list').appendChild(tr);
 
-      const infoWindow = new kakao.maps.InfoWindow({
-        content: `<div style="padding:5px;font-size:14px;">
-                    <a href="edit.html?id=${item.id}&usr=${usrParam}" target="_blank" style="color:blue;text-decoration:none;">
-                      <b>${item.title}</b><br>${item.loca}
-                    </a>
-                  </div>`
-      });
-      kakao.maps.event.addListener(marker, 'click', () => {
-        if (openInfoWindow) openInfoWindow.close();
-        infoWindow.open(map, marker);
-        openInfoWindow = infoWindow;
-      });
+          // 지도에 마커 추가
+          const marker = new kakao.maps.Marker({ map, position: markerCoords, title: item.title });
+          markers.push(marker);
+          const infoWindow = new kakao.maps.InfoWindow({
+            content: `<div style="padding:5px;font-size:14px;">
+                        <a href="edit.html?id=${item.id}&usr=${usrParam}" target="_blank" style="color:blue;text-decoration:none;">
+                          <b>${item.title}</b><br>${item.loca}
+                        </a>
+                      </div>`
+          });
+          kakao.maps.event.addListener(marker, 'click', () => {
+            if (openInfoWindow) openInfoWindow.close();
+            infoWindow.open(map, marker);
+            openInfoWindow = infoWindow;
+          });
 
-      bounds.extend(coords);
-      map.setBounds(bounds);
+          bounds.extend(markerCoords);
+          map.setBounds(bounds);
+        }
 
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><a href="edit.html?id=${item.id}&usr=${usrParam}" target="_blank">${item.title}</a></td>
-        <td>${item.loca}</td>
-        <td>✅ ${usedRetry ? '(재시도)' : '성공'}</td>
-        <td><a class="naver-link" href="https://map.naver.com/v5/search/${encodeURIComponent(usedRetry ? getRetryKeyword(item) : keyword)}" target="_blank">네이버지도</a></td>
-      `;
-      document.getElementById('success-list').appendChild(tr);
+        function addFailRow() {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td class="fail"><a href="edit.html?id=${item.id}&usr=${usrParam}" target="_blank">${item.title}</a></td>
+            <td class="fail">${item.loca}</td>
+            <td class="fail">❌ 실패</td>
+            <td><a class="naver-link" href="https://map.naver.com/v5/search/${encodeURIComponent(keyword)}" target="_blank">네이버지도</a></td>
+          `;
+          document.getElementById('fail-list').appendChild(tr);
+        }
 
-    } else if (!usedRetry) {
-      const retryKeyword = getRetryKeyword(item);
-      // 공백 없는 상호명 또는 retryKeyword가 null 이면 실패 처리
-      if (retryKeyword && retryKeyword !== keyword) {
-        places.keywordSearch(retryKeyword, (retryResult, retryStatus) => {
-          onSearch(retryResult, retryStatus, true);
+        // 첫번째(정상) 검색
+        places.keywordSearch(keyword, (result, status) => {
+          if (status === kakao.maps.services.Status.OK) {
+            // 성공
+            const coords = new kakao.maps.LatLng(result[0].y, result[0].x);
+            addSuccessRow(false, coords);
+          } else {
+            // 실패 시 단 한 번만 재시도
+            const retryKeyword = getRetryKeyword();
+            if (retryKeyword && retryKeyword !== keyword) {
+              places.keywordSearch(retryKeyword, (retryResult, retryStatus) => {
+                if (retryStatus === kakao.maps.services.Status.OK) {
+                  const coords = new kakao.maps.LatLng(retryResult[0].y, retryResult[0].x);
+                  addSuccessRow(true, coords);
+                } else {
+                  addFailRow();
+                }
+              });
+            } else {
+              addFailRow();
+            }
+          }
         });
-        return;
-      }
-      // 그렇지 않으면 실패 처리로 넘어감
-      // (retryKeyword가 null이거나 keyword와 같으면 재시도 안함)
+      });
+      // --- 핵심 로직 끝 ---
     }
-    // 실패 처리
-    if (status !== kakao.maps.services.Status.OK) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="fail"><a href="edit.html?id=${item.id}&usr=${usrParam}" target="_blank">${item.title}</a></td>
-        <td class="fail">${item.loca}</td>
-        <td class="fail">❌ 실패</td>
-        <td><a class="naver-link" href="https://map.naver.com/v5/search/${encodeURIComponent(keyword)}" target="_blank">네이버지도</a></td>
-      `;
-      document.getElementById('fail-list').appendChild(tr);
-    }
-  }
-
-  places.keywordSearch(keyword, (result, status) => {
-    onSearch(result, status, false);
-  });
-});
-
-  // 공백 전까지만 상호명 추출
-  function getRetryKeyword(item) {
-    const firstSpaceIdx = item.title.indexOf(' ');
-    if (firstSpaceIdx > 0) {
-      const shortTitle = item.title.slice(0, firstSpaceIdx);
-      return `${shortTitle} ${item.loca}`.trim();
-    }
-    return `${item.title} ${item.loca}`.trim(); // 분리가 안 되면 원래대로 반환
-  }
-
-  // 최초 검색
-  places.keywordSearch(keyword, (result, status) => {
-    onSearch(result, status, false);
-  });
-});
-
 
     showPossibleOnly.addEventListener('change', () => { showDone.checked = false; loadAndDisplayMarkers(); });
     showDone.addEventListener('change', () => { showPossibleOnly.checked = false; loadAndDisplayMarkers(); });
