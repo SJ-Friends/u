@@ -152,14 +152,22 @@
       const places = new kakao.maps.services.Places();
       const bounds = new kakao.maps.LatLngBounds();
 
- filtered.forEach(item => {
+filtered.forEach(item => {
   const keyword = `${item.title} ${item.loca}`.trim();
   if (!keyword) return;
 
-  // 한 번만 사용하는 함수 정의
+  function getRetryKeyword(item) {
+    const firstSpaceIdx = item.title.indexOf(' ');
+    if (firstSpaceIdx > 0) {
+      const shortTitle = item.title.slice(0, firstSpaceIdx);
+      return `${shortTitle} ${item.loca}`.trim();
+    }
+    return null; // 공백이 없는 경우에는 null 리턴
+  }
+
   function onSearch(result, status, usedRetry) {
     if (status === kakao.maps.services.Status.OK) {
-      // 성공 처리 (변경 없음)
+      // 성공 처리
       const coords = new kakao.maps.LatLng(result[0].y, result[0].x);
       const marker = new kakao.maps.Marker({ map, position: coords, title: item.title });
       markers.push(marker);
@@ -190,18 +198,19 @@
       document.getElementById('success-list').appendChild(tr);
 
     } else if (!usedRetry) {
-      // 첫 실패시에만 딱 1번 재시도
       const retryKeyword = getRetryKeyword(item);
-      if (retryKeyword !== keyword) {
+      // 공백 없는 상호명 또는 retryKeyword가 null 이면 실패 처리
+      if (retryKeyword && retryKeyword !== keyword) {
         places.keywordSearch(retryKeyword, (retryResult, retryStatus) => {
           onSearch(retryResult, retryStatus, true);
         });
         return;
       }
-      // 단어 분리가 안 되면 그냥 실패 처리로 이동
-      // (아래 else로 넘어감)
-    } else {
-      // 실패 처리 (재시도 포함)
+      // 그렇지 않으면 실패 처리로 넘어감
+      // (retryKeyword가 null이거나 keyword와 같으면 재시도 안함)
+    }
+    // 실패 처리
+    if (status !== kakao.maps.services.Status.OK) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="fail"><a href="edit.html?id=${item.id}&usr=${usrParam}" target="_blank">${item.title}</a></td>
@@ -212,6 +221,11 @@
       document.getElementById('fail-list').appendChild(tr);
     }
   }
+
+  places.keywordSearch(keyword, (result, status) => {
+    onSearch(result, status, false);
+  });
+});
 
   // 공백 전까지만 상호명 추출
   function getRetryKeyword(item) {
