@@ -2,65 +2,81 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8"/>
-  <title>영업시간 직접 호출 예제2</title>
+  <title>Naver Maps JS API 테스트</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <style>
-    body { font-family: sans-serif; padding: 20px; max-width: 400px; margin: auto; }
-    h1 { font-size: 1.2em; margin-bottom: 10px; }
-    #bizInfo { margin-top: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; display: none; }
-    #bizInfo p { margin: 5px 0; }
-    button { padding: 8px 12px; background: #1d72b8; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
-    button:hover { background: #135a96; }
+    body { font-family: sans-serif; margin:0; padding:0; }
+    #controls { padding: 10px; background: #fafafa; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    #controls input { padding: 6px; margin-right: 6px; width: 150px; }
+    #controls button { padding: 6px 12px; }
+    #map { width:100%; height:calc(100vh - 60px); }
   </style>
+
+  <!-- Naver Maps JS API + Places 서비스 -->
+  <script src="https://openapi.map.naver.com/openapi/v3/maps.js?  
+      ncpClientId=1wb8dgny44&submodules=service" defer></script>
 </head>
-<body>
+<body onload="initMap()">
 
-  <h1>“안주일체 부산양정점” 영업시간 조회</h1>
-  <button id="loadBtn">영업시간 불러오기</button>
-
-  <div id="bizInfo">
-    <h2 id="name"></h2>
-    <p><strong>주소:</strong> <span id="address"></span></p>
-    <p><strong>전화:</strong> <span id="telephone"></span></p>
-    <p><strong>영업시간:</strong> <span id="hours"></span></p>
+  <div id="controls">
+    <input id="titleInput" placeholder="업체명 (예: 연산정)" />
+    <input id="locaInput"  placeholder="위치   (예: 연산동)" />
+    <button id="searchBtn">검색</button>
   </div>
 
-  <script>
-    // 직접 호출 예제 (테스트용 — 키가 외부 노출됩니다!)
-    const NAVER_CLIENT_ID     = 'YOUR_CLIENT_ID';
-    const NAVER_CLIENT_SECRET = 'YOUR_CLIENT_SECRET';
+  <div id="map"></div>
 
-    async function fetchPlaceDirect(keyword) {
-      const url = `https://openapi.naver.com/v1/search/local.json`
-        + `?query=${encodeURIComponent(keyword)}&display=1`;
-      const res = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'X-Naver-Client-Id': NAVER_CLIENT_ID,
-          'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-        }
+  <script>
+    let map, marker, infoWindow;
+
+    function initMap() {
+      map = new naver.maps.Map('map', {
+        center: new naver.maps.LatLng(35.1796, 129.0756), // 기본 중심: 부산
+        zoom: 13
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      return json.items && json.items[0];
+      marker = new naver.maps.Marker({ map: map });
+      infoWindow = new naver.maps.InfoWindow();
     }
 
-    document.getElementById('loadBtn').addEventListener('click', async () => {
-      try {
-        const place = await fetchPlaceDirect('안주일체 부산양정점 양정');
-        if (!place) return alert('검색 결과가 없습니다.');
-
-        document.getElementById('bizInfo').style.display = 'block';
-        document.getElementById('name').textContent      = place.title.replace(/<[^>]*>/g, '');
-        document.getElementById('address').textContent   = place.address;
-        document.getElementById('telephone').textContent = place.telephone;
-        // 직접 호출 API엔 영업시간 정보가 없으므로 예시로 대체
-        document.getElementById('hours').textContent     = '11:00 ~ 22:00';
-      } catch (err) {
-        console.error(err);
-        alert('API 호출 중 오류 발생: ' + err.message);
+    // 검색 버튼 이벤트 바인딩
+    document.getElementById('searchBtn').addEventListener('click', () => {
+      const title = document.getElementById('titleInput').value.trim();
+      const loca  = document.getElementById('locaInput').value.trim();
+      if (!title || !loca) {
+        return alert('업체명과 위치를 모두 입력해주세요.');
       }
+      const query = `${title} ${loca}`;
+      searchPlace(query);
     });
+
+    // Places Search 호출
+    function searchPlace(query) {
+      const service = new naver.maps.Service.Places();
+      service.search({ query }, (status, response) => {
+        if (status !== naver.maps.Service.Status.OK) {
+          return alert('검색 실패: ' + status);
+        }
+        const item = response.result.items[0];
+        const latlng = new naver.maps.LatLng(item.point.y, item.point.x);
+
+        // 지도 이동 및 마커 설정
+        map.setCenter(latlng);
+        map.setZoom(15);
+        marker.setPosition(latlng);
+
+        // 정보창 내용 구성
+        const content = `
+          <div style="padding:8px;min-width:200px;">
+            <strong>${item.title.replace(/<[^>]*>/g, '')}</strong><br/>
+            <div>주소: ${item.address}</div>
+            <div>전화: ${item.telephone || '정보 없음'}</div>
+            <div>카테고리: ${item.category || '정보 없음'}</div>
+          </div>
+        `;
+        infoWindow.setContent(content);
+        infoWindow.open(map, marker);
+      });
+    }
   </script>
 
 </body>
