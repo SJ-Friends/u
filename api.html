@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>영업시간 조회 예제</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 400px; margin: auto; }
+    h1 { font-size: 1.2em; margin-bottom: 10px; }
+    #bizInfo { margin-top: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+    #bizInfo p { margin: 5px 0; }
+    button { padding: 8px 12px; background: #1d72b8; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #135a96; }
+  </style>
+</head>
+<body>
+
+  <h1>“안주일체 부산양정점” 영업시간 조회</h1>
+  <button id="loadBtn">영업시간 불러오기</button>
+
+  <div id="bizInfo" style="display: none;">
+    <h2 id="name"></h2>
+    <p><strong>주소:</strong> <span id="address"></span></p>
+    <p><strong>전화:</strong> <span id="telephone"></span></p>
+    <p><strong>영업시간:</strong> <span id="hours"></span></p>
+  </div>
+
+  <script>
+    async function fetchPlace(query) {
+      const res = await fetch(
+        `/api/local?q=${encodeURIComponent(query)}`,  // 프록시 서버 엔드포인트
+        { method: 'GET' }
+      );
+      const json = await res.json();
+      return (json.items && json.items[0]) || null;
+    }
+
+    document.getElementById('loadBtn').addEventListener('click', async () => {
+      const place = await fetchPlace('안주일체 부산양정점 양정');
+      if (!place) return alert('검색 결과가 없습니다.');
+
+      // 결과 표시
+      document.getElementById('bizInfo').style.display = 'block';
+      document.getElementById('name').textContent      = place.title.replace(/<[^>]*>/g, '');
+      document.getElementById('address').textContent   = place.address;
+      document.getElementById('telephone').textContent = place.telephone;
+      // 네이버 로컬 API 기본 응답에 영업시간은 없으므로, placeholder로 예시 표시
+      document.getElementById('hours').textContent     = '11:00 ~ 22:00';
+    });
+  </script>
+
+</body>
+</html>
