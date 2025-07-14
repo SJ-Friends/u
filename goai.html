@@ -19,12 +19,46 @@
     .btn-red:hover { background: #c0392b; }
     .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; }
     .checkbox-group label { display: flex; align-items: center; gap: 5px; font-size: 13px; }
+
+.memo-flex {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+#memoArea {
+  width: 74%;
+  min-width: 270px;
+  max-width: 500px;
+  box-sizing: border-box;
+}
+.memo-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 150px;
+}
+.memo-btns button {
+  width: 100%;
+  min-width: 90px;
+}
+@media (max-width: 600px) {
+  .memo-flex { flex-direction: column; }
+  #memoArea { width: 100%; max-width: none; }
+  .memo-btns { flex-direction: row; gap: 7px; min-width: 0; }
+  .memo-btns button { min-width: 0; }
+}
+
+
+
+
+
+
 #toast {
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: rgba(0,0,0,0.7);
+  background: #0cb5cf;
   color: white;
   padding: 10px 20px;
   border-radius: 6px;
@@ -90,14 +124,18 @@
   </div>
 
   <!-- 메모 (추가문장 전) -->
-  <div class="field">
-    <label>메모</label>
-    <textarea id="memoArea" rows="6"></textarea>
-    <div class="btn-group">
+<div class="field">
+  <label>메모</label>
+  <div class="memo-flex">
+    <textarea id="memoArea" rows="7"></textarea>
+    <div class="memo-btns">
       <button onclick="addToSentence('memoArea')">추가</button>
       <button onclick="removeFromSentence('memoArea')">제거</button>
+      <button onclick="extractMemoToBizInfo()"  class="btn-red">영업시간/주소 추출</button>
     </div>
   </div>
+</div>
+
 
   <!-- 추가 문장 -->
   <div class="field">
@@ -117,13 +155,11 @@
     <div class="btn-group">
       <button onclick="clearSentence()">지우기</button>
       <button onclick="copySentence()">복사</button>
+      <button id="btnBack" class="btn-red">리스트로 돌아가기</button>
     </div>
   </div>
 
-  <!-- 리스트로 돌아가기 버튼 -->
-  <div class="field">
-    <button id="btnBack" class="btn-red">리스트로 돌아가기</button>
-  </div>
+
 
   <!-- Toast 메시지 -->
   <div id="toast">복사되었습니다!</div>
@@ -174,7 +210,7 @@ function addToSentence(field) {
   else if (field === 'memo') val = `\n○ 주문한 메뉴 : ${document.getElementById('memoInput').value}의 비주얼과 맛\n`;
   else if (field === 'memoArea') val = `\n${document.getElementById('memoArea').value}\n`;
   else if (field === 'kword') val = `\n○ 키워드는 : ${document.getElementById('kwordInput').value}\n(키워드들은 본문에 자연스럽게 다섯번 이상 넣어서 작성해줘)\n`;
-  if (!ta.value.includes(val)) ta.value += val;
+  if (!ta.value.includes(val)) ta.value += '\n' + val;
 }
 
 function removeFromSentence(field) {
@@ -227,6 +263,124 @@ function copySentence() {
 }
 
 (async()=>{await loadUserConfig();await loadData();})();
+
+
+// 👇👇👇 영업시간 등 
+
+function extractMemoToBizInfo() {
+  const week = ['월', '화', '수', '목', '금', '토', '일', '매일'];
+  const icons = {
+    "요일": "📅",
+    "open": "🟢",
+    "break": "☕",
+    "close": "🔴",
+    "휴무": "🚫"
+  };
+  // 시간 패턴 인식
+  function normalizeTimeStr(s) {
+    return s.replace(/(\d{1,2})(\d{2})(?=[^\d]|$)/g, '$1:$2');
+  }
+
+  const raw = document.getElementById('memoArea').value
+    .replace(/\r/g,'')
+    .split('\n').map(x=>x.trim()).filter(x=>x);
+
+  // 주소/위치 정보 추출
+  let addressLines = [];
+  let lines = [];
+  const addressPattern = /^(<\s*주소\s*>|<\s*위치\s*>)?[\s\S]*?(시|군|구).*\d{1,4}[-번길 ]*\d{1,4}/i;
+  for(const l of raw){
+    if(addressPattern.test(l) || l.startsWith('<주소>') || l.startsWith('<위치>')) {
+      addressLines.push(l.replace(/<.*?>/g,'').trim());
+    } else {
+      lines.push(l);
+    }
+  }
+  let addressBlock = '';
+  if(addressLines.length){
+    addressBlock = `<위치>\n${addressLines.join('\n')}\n\n`;
+  }
+
+  // 요일별 정보 추출 (매일도 포함, 한 줄 패턴도 포함)
+  let rows = [];
+  let cur = null;
+  const yoilPattern = new RegExp('^(' + week.join('|') + ')');
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+
+    // "매일 09:00~10:00" 또는 "월 1100-2200" 한 줄 패턴
+    let match = line.match(new RegExp('^(' + week.join('|') + ')\\s*([0-9:~\\- ]+)$'));
+    if (match) {
+      if (cur) rows.push(cur);
+      cur = { "요일": match[1], "open": "", "break": "", "close": "", "휴무": "" };
+      let open = match[2].replace(/[~\-]/, ' ~ ').replace(/ +/g,'');
+      open = open.split(/[~\-]/).map(normalizeTimeStr).join(' ~ ');
+      cur["open"] = open;
+      continue;
+    }
+    // 기존 요일 시작(여러 줄 패턴)
+    let yoil = week.find(k => line.startsWith(k));
+    if (yoil) {
+      if (cur) rows.push(cur);
+      cur = { "요일": yoil, "open": "", "break": "", "close": "", "휴무": "" };
+      continue;
+    }
+    if (!cur) continue;
+    if (/휴무/.test(line)) {
+      cur["휴무"] = line;
+    } else if (/브레이크.?타임/.test(line)) {
+      let t = line.replace(/브레이크.?타임/i, '').replace(/[~\-–—]/g, ' ').trim();
+      t = t.replace(/\s+/g, ' ');
+      t = t.split(' ').map(normalizeTimeStr).join(' ~ ');
+      cur["break"] = t;
+    } else if (/라스트.?오더/.test(line)) {
+      let t = line.replace(/라스트.?오더/i, '').replace(/[:：\-~]/g,'').trim();
+      cur["close"] = normalizeTimeStr(t);
+    } else if (/(\d{1,2}[:시]\d{2}|\d{3,4})\s*[-~]\s*(\d{1,2}[:시]\d{2}|\d{3,4})/.test(line) || /\d{1,2}:\d{2}~\d{1,2}:\d{2}/.test(line)) {
+      let l = line.replace(/[~]/, ' ~ ').replace(/ +/g,'');
+      l = l.split(/[~-]/).map(normalizeTimeStr).join(' ~ ');
+      cur["open"] = l;
+    }
+  }
+  if (cur) rows.push(cur);
+
+  // 연속 데이터 묶기
+  let grouped = [];
+  let start = 0;
+  while (start < rows.length) {
+    let end = start;
+    while (
+      end+1 < rows.length &&
+      ['open','break','close','휴무'].every(
+        key => rows[end][key] === rows[end+1][key]
+      )
+    ) {
+      end++;
+    }
+    grouped.push({start, end});
+    start = end+1;
+  }
+
+  // 출력 조립
+  let result = addressBlock;
+  for (const group of grouped) {
+    let s = group.start, e = group.end;
+    let days = (s===e)
+      ? rows[s]['요일']
+      : rows[s]['요일'] + '~' + rows[e]['요일'];
+    let r = rows[s];
+    let line = `${icons['요일']} ${days}`;
+    if(r['open'])    line += `   ${icons['open']} open: ${r['open']}`;
+    if(r['break'])   line += `   ${icons['break']} break: ${r['break']}`;
+    if(r['close'])   line += `   ${icons['close']} close: ${r['close']}`;
+    if(r['휴무'])    line += `   ${icons['휴무']} ${r['휴무']}`;
+    result += line.trim() + '\n';
+  }
+  // finalSentence textarea에 결과 추가
+  const ta = document.getElementById('finalSentence');
+  if (!ta.value.includes(result.trim())) ta.value += (ta.value.trim() ? '\n\n':'') + result.trim();
+}
+
 </script>
 
 </body>
