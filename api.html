@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <title>영업시간 조회 예제</title>
+  <meta charset="UTF-8"/>
+  <title>영업시간 직접 호출 예제2</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <style>
     body { font-family: sans-serif; padding: 20px; max-width: 400px; margin: auto; }
     h1 { font-size: 1.2em; margin-bottom: 10px; }
-    #bizInfo { margin-top: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+    #bizInfo { margin-top: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; display: none; }
     #bizInfo p { margin: 5px 0; }
     button { padding: 8px 12px; background: #1d72b8; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
     button:hover { background: #135a96; }
@@ -17,7 +18,7 @@
   <h1>“안주일체 부산양정점” 영업시간 조회</h1>
   <button id="loadBtn">영업시간 불러오기</button>
 
-  <div id="bizInfo" style="display: none;">
+  <div id="bizInfo">
     <h2 id="name"></h2>
     <p><strong>주소:</strong> <span id="address"></span></p>
     <p><strong>전화:</strong> <span id="telephone"></span></p>
@@ -25,26 +26,40 @@
   </div>
 
   <script>
-    async function fetchPlace(query) {
-      const res = await fetch(
-        `/api/local?q=${encodeURIComponent(query)}`,  // 프록시 서버 엔드포인트
-        { method: 'GET' }
-      );
+    // 직접 호출 예제 (테스트용 — 키가 외부 노출됩니다!)
+    const NAVER_CLIENT_ID     = 'YOUR_CLIENT_ID';
+    const NAVER_CLIENT_SECRET = 'YOUR_CLIENT_SECRET';
+
+    async function fetchPlaceDirect(keyword) {
+      const url = `https://openapi.naver.com/v1/search/local.json`
+        + `?query=${encodeURIComponent(keyword)}&display=1`;
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'X-Naver-Client-Id': NAVER_CLIENT_ID,
+          'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+        }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      return (json.items && json.items[0]) || null;
+      return json.items && json.items[0];
     }
 
     document.getElementById('loadBtn').addEventListener('click', async () => {
-      const place = await fetchPlace('안주일체 부산양정점 양정');
-      if (!place) return alert('검색 결과가 없습니다.');
+      try {
+        const place = await fetchPlaceDirect('안주일체 부산양정점 양정');
+        if (!place) return alert('검색 결과가 없습니다.');
 
-      // 결과 표시
-      document.getElementById('bizInfo').style.display = 'block';
-      document.getElementById('name').textContent      = place.title.replace(/<[^>]*>/g, '');
-      document.getElementById('address').textContent   = place.address;
-      document.getElementById('telephone').textContent = place.telephone;
-      // 네이버 로컬 API 기본 응답에 영업시간은 없으므로, placeholder로 예시 표시
-      document.getElementById('hours').textContent     = '11:00 ~ 22:00';
+        document.getElementById('bizInfo').style.display = 'block';
+        document.getElementById('name').textContent      = place.title.replace(/<[^>]*>/g, '');
+        document.getElementById('address').textContent   = place.address;
+        document.getElementById('telephone').textContent = place.telephone;
+        // 직접 호출 API엔 영업시간 정보가 없으므로 예시로 대체
+        document.getElementById('hours').textContent     = '11:00 ~ 22:00';
+      } catch (err) {
+        console.error(err);
+        alert('API 호출 중 오류 발생: ' + err.message);
+      }
     });
   </script>
 
