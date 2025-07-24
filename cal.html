@@ -38,6 +38,26 @@
     .modal ul { padding-left:20px; line-height:1.6; }
     .modal .link-button { color:#0077cc; text-decoration:underline; cursor:pointer; }
     .modal .small-note { font-size:0.9em; color:#555; }
+    /* field 그룹 스타일 */
+    .field-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 30px;
+      margin-top: 22px;
+      margin-bottom: 30px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-start;
+    }
+    .btn-group {
+      display: flex;
+      gap: 5px;
+      margin-top: 2px;
+    }
+    textarea { font-size:15px; padding:8px; border-radius:6px; border:1px solid #d7d7d7;}
   </style>
 </head>
 <body>
@@ -59,12 +79,27 @@
   <div id='calendar'></div>
   <div id="legend"></div>
 
-  <div class="field">
-    <textarea id="finalSentence" rows="5" style="width:30%;"></textarea>
-    <div class="btn-group">
-      <button onclick="copySentence()">복사</button>
-      <button onclick="clearSentence()">지우기</button>
-      <button onclick="saveSentence()">저장</button>
+  <!-- 문구 작성 상자 2개(최초 invi/ 두번째 invi2) -->
+  <div class="field-group">
+    <!-- invi용 -->
+    <div class="field">
+      <label for="finalSentence"><b>Memo 1</b></label>
+      <textarea id="finalSentence" rows="5" style="width:270px;"></textarea>
+      <div class="btn-group">
+        <button onclick="copySentence()">복사</button>
+        <button onclick="clearSentence()">지우기</button>
+        <button onclick="saveSentence()">저장</button>
+      </div>
+    </div>
+    <!-- invi2용 -->
+    <div class="field">
+      <label for="finalSentence2"><b>Memo 2</b></label>
+      <textarea id="finalSentence2" rows="5" style="width:270px;"></textarea>
+      <div class="btn-group">
+        <button onclick="copySentence2()">복사</button>
+        <button onclick="clearSentence2()">지우기</button>
+        <button onclick="saveSentence2()">저장</button>
+      </div>
     </div>
   </div>
 
@@ -111,20 +146,89 @@
     return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
 
-  // finalSentence 로드/저장
+  // finalSentence 및 finalSentence2 로드/저장
   async function loadSentence() {
     const { data } = await supabase.from(config.i_table)
-      .select('invi').order('id', { ascending: false }).limit(1);
-    if (data.length) document.getElementById('finalSentence').value = data[0].invi;
+      .select('invi, invi2').order('id', { ascending: false }).limit(1);
+    if (data.length) {
+      document.getElementById('finalSentence').value = data[0].invi || '';
+      document.getElementById('finalSentence2').value = data[0].invi2 || '';
+    }
   }
-  async function saveSentence() {
-    const text = document.getElementById('finalSentence').value;
-    const { error } = await supabase.from(config.i_table).insert({ invi: text });
+
+
+// 최신 invi 레코드(id, invi, invi2) 가져오기
+async function getLatestInviRow() {
+  const { data } = await supabase
+    .from(config.i_table)
+    .select('id, invi, invi2')
+    .order('id', { ascending: false })
+    .limit(1);
+  return data.length ? data[0] : null;
+}
+
+// invi 저장 (update 또는 insert)
+async function saveSentence() {
+  const text = document.getElementById('finalSentence').value;
+  const latest = await getLatestInviRow();
+  if (latest) {
+    // 최신 레코드 update
+    const { error } = await supabase
+      .from(config.i_table)
+      .update({ invi: text })
+      .eq('id', latest.id);
+    if (error) alert('저장 실패:' + error.message);
+    else alert('저장 완료!');
+  } else {
+    // 데이터 없으면 새 레코드 insert
+    const { error } = await supabase
+      .from(config.i_table)
+      .insert({ invi: text });
     if (error) alert('저장 실패:' + error.message);
     else alert('저장 완료!');
   }
+}
+
+// invi2 저장 (update 또는 insert)
+async function saveSentence2() {
+  const text2 = document.getElementById('finalSentence2').value;
+  const latest = await getLatestInviRow();
+  if (latest) {
+    // 최신 레코드 update
+    const { error } = await supabase
+      .from(config.i_table)
+      .update({ invi2: text2 })
+      .eq('id', latest.id);
+    if (error) alert('저장 실패:' + error.message);
+    else alert('저장 완료!');
+  } else {
+    // 데이터 없으면 새 레코드 insert
+    const { error } = await supabase
+      .from(config.i_table)
+      .insert({ invi2: text2 });
+    if (error) alert('저장 실패:' + error.message);
+    else alert('저장 완료!');
+  }
+}
+
+
+  // invi 지우기/복사
   function clearSentence() { document.getElementById('finalSentence').value = ''; }
-  function copySentence() { const ta = document.getElementById('finalSentence'); ta.select(); document.execCommand('copy'); alert('복사 완료!'); }
+  function copySentence() {
+    const ta = document.getElementById('finalSentence');
+    ta.select();
+    document.execCommand('copy');
+    alert('복사 완료!');
+  }
+
+  // invi2 지우기/복사
+  function clearSentence2() { document.getElementById('finalSentence2').value = ''; }
+  function copySentence2() {
+    const ta2 = document.getElementById('finalSentence2');
+    ta2.select();
+    document.execCommand('copy');
+    alert('복사 완료!');
+  }
 
   function closeModal() {
     const m = document.getElementById('reportModal');
