@@ -111,6 +111,12 @@
     </div>
   </div>
 
+<!-- 복사 Toast 메시지 -->
+<div id="toast" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#0cb5cf;color:white;padding:10px 20px;border-radius:6px;opacity:0;transition:opacity 0.3s ease;z-index:9999;">
+  복사되었습니다!
+</div>
+
+
 <script>
   const supabase = window.supabase.createClient(
     'https://xxmtxuhcdzidhrefrvwf.supabase.co',
@@ -124,6 +130,16 @@
     alert('유효한 사용자 파라미터(usr)가 필요합니다.');
     throw new Error('Missing usr parameter');
   }
+
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg || '복사되었습니다!';
+  toast.style.opacity = '1';
+  setTimeout(() => { toast.style.opacity = '0'; }, 1000);
+}
+
+
 
   // 사용자 설정 로드
   let config;
@@ -214,21 +230,22 @@ async function saveSentence2() {
 
   // invi 지우기/복사
   function clearSentence() { document.getElementById('finalSentence').value = ''; }
-  function copySentence() {
-    const ta = document.getElementById('finalSentence');
-    ta.select();
-    document.execCommand('copy');
-    alert('복사 완료!');
+ 
+ function copySentence() {
+   const ta = document.getElementById('finalSentence');
+  ta.select();
+  document.execCommand('copy');
+  showToast();
   }
 
   // invi2 지우기/복사
   function clearSentence2() { document.getElementById('finalSentence2').value = ''; }
-  function copySentence2() {
-    const ta2 = document.getElementById('finalSentence2');
-    ta2.select();
-    document.execCommand('copy');
-    alert('복사 완료!');
-  }
+function copySentence2() {
+  const ta2 = document.getElementById('finalSentence2');
+  ta2.select();
+  document.execCommand('copy');
+  showToast();
+}
 
   function closeModal() {
     const m = document.getElementById('reportModal');
