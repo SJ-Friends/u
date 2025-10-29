@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>📈 월별 실적 추이</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    /* 기본 레이아웃 */
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f4f4;
+      max-width: 1000px;
+      margin: auto;
+      padding: 40px 20px;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+      gap: 10px;
+    }
+    h1 { margin: 0; color: #333; }
+    button {
+      padding: 8px 12px; font-size: 14px;
+      background: #1d72b8; color: #fff; border: 0; border-radius: 6px; cursor: pointer;
+    }
+    button:hover { background: #135a96; }
+    .card {
+      background: #fff; padding: 20px; border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px;
+    }
+    .stat {
+      display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px;
+    }
+    .stat div {
+      background: #eef; padding: 12px 14px; border-radius: 8px; font-size: 14px;
+    }
+    table {
+      width: 100%; border-collapse: collapse; margin-top: 14px;
+    }
+    th, td { padding: 10px; text-align: center; border-bottom: 1px solid #eee; }
+    th { background: #f0f0f0; font-weight: 600; }
+    .muted { color: #666; font-size: 13px; }
+    .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .toggle { display: inline-flex; align-items: center; gap: 6px; user-select: none; cursor: pointer; }
+
+    /* === 차트 안전 영역 (하드닝) ===
+       - 컨테이너 고정 높이로 레이아웃 루프 차단
+       - 캔버스 절대 배치로 100% 영역 채움
+       - overflow:hidden으로 예상치 못한 확장 방지 */
+    .chart-wrap {
+      position: relative;
+      height: 360px;          /* 필요 시 300~480px 범위로 조절 */
+      max-height: 60vh;       /* 화면 기준 상한 */
+      overflow: hidden;       /* 컨텐츠 넘침 방지 */
+    }
+    .chart-wrap canvas {
+      position: absolute; inset: 0;
+      width: 100% !important;
+      height: 100% !important;
+      display: block;         /* 인라인 요소간 간격 제거 */
+    }
+
+    /* 기타 안전장치 */
+    html, body { min-height: 100%; }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <h1 id="pageTitle">📈 월별 실적 추이</h1>
+    <div class="controls">
+      <label class="toggle">
+        <input type="checkbox" id="lineToggle" />
+        선형 추세선 표시
+      </label>
+      <button id="btnReport">📋 리포트로</button>
+      <button id="btnMap">🗺️ 지도</button>
+      <button id="btnCal">📅 캘린더</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="chart-wrap">
+      <!-- height/width 속성 명시 X : CSS만 사용 -->
+      <canvas id="monthlyChart"></canvas>
+    </div>
+    <div class="stat" id="quickStats"></div>
+    <div class="muted" id="rangeInfo"></div>
+  </div>
+
+  <div class="card">
+    <h2>📋 월별 건수 표</h2>
+    <table id="tblMonthly">
+      <thead>
+        <tr>
+          <th>월(YYYY-MM)</th>
+          <th>완료 건수</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+<script>
+  // === Supabase 연결 (기존과 동일) ===
+  const supabase = window.supabase.createClient(
+    'https://xxmtxuhcdzidhrefrvwf.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4bXR4dWhjZHppZGhyZWZydndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQwODAyNTQsImV4cCI6MjA1OTY1NjI1NH0.TaCCDlJvKrif_pZY038Qkglip8h-Qqjp2w2GlKwvoVg'
+  );
+
+  // === 파라미터 체크 ===
+  const urlParams = new URLSearchParams(window.location.search);
+  const usrParam = urlParams.get('usr');
+  if (!usrParam) {
+    alert('유효한 사용자 파라미터(usr)가 필요합니다.');
+    throw new Error('Missing usr parameter');
+  }
+
+  // === 상태 ===
+  let config;
+  let chart = null;                   // Chart.js 인스턴스
+  let labelsGlobal = [];              // 월 라벨
+  let countsGlobal = [];              // 월별 건수
+  let initDone = false;               // 초기화 가드
+
+  // === 유틸 ===
+  const ymKey = (d) => {
+    const y = d.getFullYear();
+    const m = (d.getMonth() + 1).toString().padStart(2, '0');
+    return `${y}-${m}`;
+  };
+  const addMonths = (date, months) =>
+    new Date(date.getFullYear(), date.getMonth() + months, 1);
+  const monthRangeKeys = (minDate, maxDate) => {
+    const keys = [];
+    let cur = new Date(minDate);
+    while (cur <= maxDate) {
+      keys.push(ymKey(cur));
+      cur = addMonths(cur, 1);
+    }
+    return keys;
+  };
+  function parseDateSafe(v) {
+    if (!v) return null;
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  async function loadUserConfig() {
+    const { data, error } = await supabase
+      .from('usr')
+      .select('b_name,name,s_table,t_table,i_table,logo')
+      .eq('uid', usrParam)
+      .single();
+    if (error || !data) {
+      alert('사용자 설정을 불러오지 못했습니다.');
+      throw error || new Error('No user data');
+    }
+    config = data;
+    document.getElementById('pageTitle').textContent = `📈 ${config.b_name} 월별 실적 추이`;
+    document.title = `${config.b_name} | 월별 실적 추이`;
+  }
+
+  async function loadMonthlyCounts() {
+    const { data, error } = await supabase
+      .from(config.s_table)
+      .select('done, date_e'); // 최소 컬럼만
+    if (error) {
+      alert('데이터 불러오기 실패');
+      throw error;
+    }
+
+    const items = (data || []).filter(r => r && r.done && r.date_e);
+
+    if (items.length === 0) {
+      labelsGlobal = [];
+      countsGlobal = [];
+      renderTable(labelsGlobal, countsGlobal);
+      renderChart(labelsGlobal, countsGlobal);
+      document.getElementById('rangeInfo').textContent = '완료된 실적 데이터가 없습니다.';
+      document.getElementById('quickStats').innerHTML = '';
+      return;
+    }
+
+    const monthDates = items
+      .map(r => parseDateSafe(r.date_e))
+      .filter(Boolean)
+      .map(d => new Date(d.getFullYear(), d.getMonth(), 1));
+
+    if (monthDates.length === 0) {
+      labelsGlobal = [];
+      countsGlobal = [];
+      renderTable(labelsGlobal, countsGlobal);
+      renderChart(labelsGlobal, countsGlobal);
+      document.getElementById('rangeInfo').textContent = '유효한 종료일(date_e)이 없습니다.';
+      document.getElementById('quickStats').innerHTML = '';
+      return;
+    }
+
+    const minDate = new Date(Math.min(...monthDates));
+    const now = new Date();
+    const maxDate = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const keys = monthRangeKeys(minDate, maxDate);
+    const countMap = Object.fromEntries(keys.map(k => [k, 0]));
+
+    for (const r of items) {
+      const d = parseDateSafe(r.date_e);
+      if (!d) continue;
+      const key = ymKey(new Date(d.getFullYear(), d.getMonth(), 1));
+      if (key in countMap) countMap[key] += 1;
+    }
+
+    labelsGlobal = keys;
+    countsGlobal = keys.map(k => countMap[k]);
+
+    const total = countsGlobal.reduce((a,b)=>a+b,0);
+    const activeMonths = countsGlobal.filter(c=>c>0).length;
+    const avgPerMonth = labelsGlobal.length ? Math.round(total / labelsGlobal.length) : 0;
+
+    document.getElementById('rangeInfo').textContent =
+      `기간: ${labelsGlobal[0]} ~ ${labelsGlobal[labelsGlobal.length - 1]} (총 ${labelsGlobal.length}개월)`;
+
+    document.getElementById('quickStats').innerHTML = `
+      <div>총 완료건수: <b>${total}</b>건</div>
+      <div>활성 월(실적>0): <b>${activeMonths}</b>개월</div>
+      <div>월 평균(전체 기간 기준): <b>${avgPerMonth}</b>건</div>
+    `;
+
+    renderTable(labelsGlobal, countsGlobal);
+    renderChart(labelsGlobal, countsGlobal);
+  }
+
+  function renderTable(labels, counts) {
+    const tbody = document.querySelector('#tblMonthly tbody');
+    tbody.innerHTML = '';
+    for (let i = 0; i < labels.length; i++) {
+      tbody.insertAdjacentHTML('beforeend', `
+        <tr>
+          <td>${labels[i]}</td>
+          <td>${counts[i]}</td>
+        </tr>
+      `);
+    }
+  }
+
+  function renderChart(labels, counts) {
+    const canvas = document.getElementById('monthlyChart');
+    const ctx = canvas.getContext('2d');
+
+    // 기존 차트 정리
+    if (chart) {
+      chart.destroy();
+      chart = null;
+    }
+
+    const showLine = document.getElementById('lineToggle').checked;
+
+    const datasets = [
+      {
+        type: 'bar',
+        label: '월별 완료 건수',
+        data: counts,
+        borderWidth: 1
+      }
+    ];
+    if (showLine) {
+      datasets.push({
+        type: 'line',
+        label: '추세선',
+        data: counts,
+        tension: 0.25,
+        pointRadius: 2
+      });
+    }
+
+    // === Chart.js 옵션 하드닝(루프 방지) ===
+    chart = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets },
+      options: {
+        responsive: true,            // 반응형은 유지
+        resizeDelay: 150,            // 리사이즈 폭주 완화
+        maintainAspectRatio: false,  // 컨테이너 높이에 맞춤
+        animation: false,            // 리플로우 최소화
+        plugins: {
+          legend: { display: true },
+          tooltip: {
+            callbacks: {
+              title: (items) => items?.[0]?.label ?? '',
+              label: (item) => `${item.dataset.label}: ${item.parsed.y}건`
+            }
+          }
+        },
+        scales: {
+          x: { title: { display: true, text: '월(YYYY-MM)' } },
+          y: { beginAtZero: true, title: { display: true, text: '건수' }, ticks: { precision: 0 } }
+        }
+      }
+    });
+  }
+
+  // === 안전한 단일 초기화 ===
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (initDone) return;  // 가드
+    initDone = true;
+
+    await loadUserConfig();
+    await loadMonthlyCounts();
+
+    // 이동 버튼(usr 유지)
+    document.getElementById('btnMap').onclick   = () => location.href = `map.html?usr=${usrParam}`;
+    document.getElementById('btnCal').onclick   = () => location.href = `cal.html?usr=${usrParam}`;
+    document.getElementById('btnReport').onclick= () => location.href = `done.html?usr=${usrParam}`;
+
+    // 토글은 차트만 재렌더 (DOM 변경 없음)
+    document.getElementById('lineToggle').addEventListener('change', () => {
+      renderChart(labelsGlobal, countsGlobal);
+    });
+  });
+</script>
+</body>
+</html>
