@@ -58,6 +58,16 @@
       margin-top: 2px;
     }
     textarea { font-size:15px; padding:8px; border-radius:6px; border:1px solid #d7d7d7;}
+
+    /* 🔴 추가: graBtn(월별그래프)만 붉은색으로 */
+    .fc .fc-graBtn-button {
+      background-color: #d93025 !important; /* 구글 레드 톤 */
+      color: #fff !important;
+      border: none !important;
+    }
+    .fc .fc-graBtn-button:hover {
+      background-color: #b1271b !important;
+    }
   </style>
 </head>
 <body>
@@ -112,7 +122,7 @@
   </div>
 
 <!-- 복사 Toast 메시지 -->
-<div id="toast" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#0cb5cf;color:white;padding:10px 20px;border-radius:6px;opacity:0;transition:opacity 0.3s ease;z-index:9999;">
+<div id="toast" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#0cb5cf;color:white;padding:10px 20px;border-radius:6px;opacity:0;transition:opacity 0.3s.ease;z-index:9999;">
   복사되었습니다!
 </div>
 
@@ -313,11 +323,13 @@ function copySentence2() {
       loadSentence();
       const calendar = new FullCalendar.Calendar(document.getElementById('calendar'),{
         initialView:'dayGridMonth', locale:'ko', firstDay:1, height:'auto',
-        headerToolbar:{left:'prevBtn,nextBtn todayBtn',center:'title',right:'doneBtn'},
+        headerToolbar:{left:'prevBtn,nextBtn todayBtn',center:'title',right:'graBtn doneBtn'}, /* ← 여기: graBtn을 doneBtn 왼쪽에 */
         customButtons:{
           prevBtn:{text:'◁',click:()=>calendar.prev()},
           nextBtn:{text:'▷',click:()=>calendar.next()},
           todayBtn:{text:'📍 이번달',click:()=>calendar.today()},
+          /* 🔴 추가: 월별 그래프 버튼 */
+          graBtn:{text:'📊 월별그래프', click:()=>location.href = `gra.html?usr=${usrParam}`},
           doneBtn:{text:'📈 월간실적',click:()=>location.href = `done.html?usr=${usrParam}`}
         },
         titleFormat:{year:'numeric',month:'long'},
