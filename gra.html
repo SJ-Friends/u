@@ -2,14 +2,13 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>📈 월별 실적 추이</title>
+  <title>📈 실적 추이 (월/주)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
-    /* 기본 레이아웃 */
     body {
       font-family: 'Segoe UI', sans-serif;
       background: #f4f4f4;
@@ -22,14 +21,13 @@
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
       gap: 10px;
     }
     h1 { margin: 0; color: #333; }
-    button {
-      padding: 8px 12px; font-size: 14px;
-      background: #1d72b8; color: #fff; border: 0; border-radius: 6px; cursor: pointer;
-    }
+    .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    select, button { padding: 8px 12px; font-size: 14px; border-radius: 6px; }
+    button { background: #1d72b8; color: #fff; border: 0; cursor: pointer; }
     button:hover { background: #135a96; }
     .card {
       background: #fff; padding: 20px; border-radius: 10px;
@@ -41,45 +39,38 @@
     .stat div {
       background: #eef; padding: 12px 14px; border-radius: 8px; font-size: 14px;
     }
-    table {
-      width: 100%; border-collapse: collapse; margin-top: 14px;
-    }
+    .muted { color: #666; font-size: 13px; margin-top: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
     th, td { padding: 10px; text-align: center; border-bottom: 1px solid #eee; }
     th { background: #f0f0f0; font-weight: 600; }
-    .muted { color: #666; font-size: 13px; }
-    .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .toggle { display: inline-flex; align-items: center; gap: 6px; user-select: none; cursor: pointer; }
-
-    /* === 차트 안전 영역 (하드닝) ===
-       - 컨테이너 고정 높이로 레이아웃 루프 차단
-       - 캔버스 절대 배치로 100% 영역 채움
-       - overflow:hidden으로 예상치 못한 확장 방지 */
+    /* 차트 안전 래퍼 (무한 높이 루프 방지) */
     .chart-wrap {
       position: relative;
-      height: 360px;          /* 필요 시 300~480px 범위로 조절 */
-      max-height: 60vh;       /* 화면 기준 상한 */
-      overflow: hidden;       /* 컨텐츠 넘침 방지 */
+      height: 360px;      /* 필요 시 300~480px 조절 */
+      max-height: 60vh;
+      overflow: hidden;
     }
     .chart-wrap canvas {
       position: absolute; inset: 0;
-      width: 100% !important;
-      height: 100% !important;
-      display: block;         /* 인라인 요소간 간격 제거 */
+      width: 100% !important; height: 100% !important; display: block;
     }
-
-    /* 기타 안전장치 */
-    html, body { min-height: 100%; }
   </style>
 </head>
 <body>
   <div class="top-bar">
-    <h1 id="pageTitle">📈 월별 실적 추이</h1>
+    <h1 id="pageTitle">📈 실적 추이</h1>
     <div class="controls">
-      <label class="toggle">
-        <input type="checkbox" id="lineToggle" />
-        선형 추세선 표시
+      <!-- ① 요청: 초기 체크 상태 -->
+      <label style="user-select:none; cursor:pointer;">
+        <input type="checkbox" id="lineToggle" checked /> 선형 추세선 표시
       </label>
-      <button id="btnReport">📋 리포트로</button>
+      <!-- ② 요청: 월/주 단위 전환 -->
+      <label for="granularity">보기:</label>
+      <select id="granularity">
+        <option value="month" selected>월 단위</option>
+        <option value="week">주 단위</option>
+      </select>
+      <button id="btnReport">📋 리포트</button>
       <button id="btnMap">🗺️ 지도</button>
       <button id="btnCal">📅 캘린더</button>
     </div>
@@ -87,19 +78,18 @@
 
   <div class="card">
     <div class="chart-wrap">
-      <!-- height/width 속성 명시 X : CSS만 사용 -->
-      <canvas id="monthlyChart"></canvas>
+      <canvas id="trendChart"></canvas>
     </div>
     <div class="stat" id="quickStats"></div>
     <div class="muted" id="rangeInfo"></div>
   </div>
 
   <div class="card">
-    <h2>📋 월별 건수 표</h2>
-    <table id="tblMonthly">
+    <h2 id="tableTitle">📋 월별 건수 표</h2>
+    <table id="tblCounts">
       <thead>
         <tr>
-          <th>월(YYYY-MM)</th>
+          <th id="thLabel">월(YYYY-MM)</th>
           <th>완료 건수</th>
         </tr>
       </thead>
@@ -108,28 +98,26 @@
   </div>
 
 <script>
-  // === Supabase 연결 (기존과 동일) ===
+  // === Supabase 연결 ===
   const supabase = window.supabase.createClient(
     'https://xxmtxuhcdzidhrefrvwf.supabase.co',
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4bXR4dWhjZHppZGhyZWZydndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQwODAyNTQsImV4cCI6MjA1OTY1NjI1NH0.TaCCDlJvKrif_pZY038Qkglip8h-Qqjp2w2GlKwvoVg'
   );
 
-  // === 파라미터 체크 ===
+  // usr 파라미터
   const urlParams = new URLSearchParams(window.location.search);
   const usrParam = urlParams.get('usr');
-  if (!usrParam) {
-    alert('유효한 사용자 파라미터(usr)가 필요합니다.');
-    throw new Error('Missing usr parameter');
-  }
+  if (!usrParam) { alert('usr 파라미터가 필요합니다.'); throw new Error('Missing usr'); }
 
-  // === 상태 ===
+  // 상태
   let config;
-  let chart = null;                   // Chart.js 인스턴스
-  let labelsGlobal = [];              // 월 라벨
-  let countsGlobal = [];              // 월별 건수
-  let initDone = false;               // 초기화 가드
+  let chart = null;
+  let itemsGlobal = [];    // 원본 done + date_e 항목
+  let labelsGlobal = [];   // 현재 라벨
+  let countsGlobal = [];   // 현재 데이터
+  let initDone = false;
 
-  // === 유틸 ===
+  // 유틸: 월 라벨
   const ymKey = (d) => {
     const y = d.getFullYear();
     const m = (d.getMonth() + 1).toString().padStart(2, '0');
@@ -152,143 +140,158 @@
     return isNaN(d.getTime()) ? null : d;
   }
 
+  // 유틸: 주단위(월요일 시작)
+  function startOfWeekMon(d) {
+    // d는 Date; 월요일(1) 시작
+    const day = d.getDay(); // 0=일,1=월,..
+    const diff = (day === 0 ? -6 : 1 - day); // 일요일이면 -6, 월요일이면 0, 화요일이면 -1 ...
+    const s = new Date(d);
+    s.setHours(0,0,0,0);
+    s.setDate(s.getDate() + diff);
+    return new Date(s.getFullYear(), s.getMonth(), s.getDate());
+  }
+  function addDays(date, days) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+  }
+  function weekKeyLabel(dMon) {
+    // dMon: 주의 월요일
+    const y = dMon.getFullYear();
+    const m = (dMon.getMonth()+1).toString().padStart(2,'0');
+    const dd = dMon.getDate().toString().padStart(2,'0');
+    // 표시는 "YYYY-ww (MM/DD~MM/DD)" 대신 간결하게:
+    const sun = addDays(dMon, 6);
+    const m2 = (sun.getMonth()+1).toString().padStart(2,'0');
+    const dd2 = sun.getDate().toString().padStart(2,'0');
+    return `${y}-${m}-${dd}~${m2}-${dd2}`; // 예: 2025-10-27~11-02
+  }
+  function weekRangeKeys(minDate, maxDate) {
+    // minDate/maxDate는 일 단위. 범위를 포괄하는 첫 월요일~마지막 월요일
+    const firstMon = startOfWeekMon(minDate);
+    const lastMon  = startOfWeekMon(maxDate);
+    const keys = [];
+    let cur = new Date(firstMon);
+    while (cur <= lastMon) {
+      keys.push(weekKeyLabel(cur));
+      cur = addDays(cur, 7);
+    }
+    return keys;
+  }
+
   async function loadUserConfig() {
     const { data, error } = await supabase
       .from('usr')
       .select('b_name,name,s_table,t_table,i_table,logo')
       .eq('uid', usrParam)
       .single();
-    if (error || !data) {
-      alert('사용자 설정을 불러오지 못했습니다.');
-      throw error || new Error('No user data');
-    }
+    if (error || !data) { alert('사용자 설정 로드 실패'); throw error || new Error('No user'); }
     config = data;
-    document.getElementById('pageTitle').textContent = `📈 ${config.b_name} 월별 실적 추이`;
-    document.title = `${config.b_name} | 월별 실적 추이`;
+    document.getElementById('pageTitle').textContent = `📈 ${config.b_name} 실적 추이`;
+    document.title = `${config.b_name} | 실적 추이`;
   }
 
-  async function loadMonthlyCounts() {
+  async function loadItems() {
     const { data, error } = await supabase
       .from(config.s_table)
-      .select('done, date_e'); // 최소 컬럼만
-    if (error) {
-      alert('데이터 불러오기 실패');
-      throw error;
-    }
+      .select('done, date_e');
+    if (error) { alert('데이터 불러오기 실패'); throw error; }
+    itemsGlobal = (data || []).filter(r => r && r.done && r.date_e);
+  }
 
-    const items = (data || []).filter(r => r && r.done && r.date_e);
+  // 집계: 월/주
+  function buildMonthlyCounts() {
+    if (itemsGlobal.length === 0) return { labels: [], counts: [], info: '완료 데이터 없음' };
 
-    if (items.length === 0) {
-      labelsGlobal = [];
-      countsGlobal = [];
-      renderTable(labelsGlobal, countsGlobal);
-      renderChart(labelsGlobal, countsGlobal);
-      document.getElementById('rangeInfo').textContent = '완료된 실적 데이터가 없습니다.';
-      document.getElementById('quickStats').innerHTML = '';
-      return;
-    }
-
-    const monthDates = items
+    const dates = itemsGlobal
       .map(r => parseDateSafe(r.date_e))
       .filter(Boolean)
       .map(d => new Date(d.getFullYear(), d.getMonth(), 1));
+    if (dates.length === 0) return { labels: [], counts: [], info: '유효한 종료일 없음' };
 
-    if (monthDates.length === 0) {
-      labelsGlobal = [];
-      countsGlobal = [];
-      renderTable(labelsGlobal, countsGlobal);
-      renderChart(labelsGlobal, countsGlobal);
-      document.getElementById('rangeInfo').textContent = '유효한 종료일(date_e)이 없습니다.';
-      document.getElementById('quickStats').innerHTML = '';
-      return;
-    }
-
-    const minDate = new Date(Math.min(...monthDates));
+    const minDate = new Date(Math.min(...dates));
     const now = new Date();
     const maxDate = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const keys = monthRangeKeys(minDate, maxDate);
     const countMap = Object.fromEntries(keys.map(k => [k, 0]));
-
-    for (const r of items) {
+    for (const r of itemsGlobal) {
       const d = parseDateSafe(r.date_e);
       if (!d) continue;
       const key = ymKey(new Date(d.getFullYear(), d.getMonth(), 1));
       if (key in countMap) countMap[key] += 1;
     }
-
-    labelsGlobal = keys;
-    countsGlobal = keys.map(k => countMap[k]);
-
-    const total = countsGlobal.reduce((a,b)=>a+b,0);
-    const activeMonths = countsGlobal.filter(c=>c>0).length;
-    const avgPerMonth = labelsGlobal.length ? Math.round(total / labelsGlobal.length) : 0;
-
-    document.getElementById('rangeInfo').textContent =
-      `기간: ${labelsGlobal[0]} ~ ${labelsGlobal[labelsGlobal.length - 1]} (총 ${labelsGlobal.length}개월)`;
-
-    document.getElementById('quickStats').innerHTML = `
-      <div>총 완료건수: <b>${total}</b>건</div>
-      <div>활성 월(실적>0): <b>${activeMonths}</b>개월</div>
-      <div>월 평균(전체 기간 기준): <b>${avgPerMonth}</b>건</div>
-    `;
-
-    renderTable(labelsGlobal, countsGlobal);
-    renderChart(labelsGlobal, countsGlobal);
+    const labels = keys;
+    const counts = keys.map(k => countMap[k]);
+    const info = `기간: ${labels[0]} ~ ${labels[labels.length-1]} (총 ${labels.length}개월)`;
+    return { labels, counts, info };
   }
 
-  function renderTable(labels, counts) {
-    const tbody = document.querySelector('#tblMonthly tbody');
+  function buildWeeklyCounts() {
+    if (itemsGlobal.length === 0) return { labels: [], counts: [], info: '완료 데이터 없음' };
+
+    const rawDates = itemsGlobal.map(r => parseDateSafe(r.date_e)).filter(Boolean);
+    if (rawDates.length === 0) return { labels: [], counts: [], info: '유효한 종료일 없음' };
+
+    const minDate = new Date(Math.min(...rawDates));
+    const now = new Date();
+    const maxDate = now; // 현재 일자까지
+
+    const keys = weekRangeKeys(minDate, maxDate);
+    const countMap = Object.fromEntries(keys.map(k => [k, 0]));
+
+    for (const r of itemsGlobal) {
+      const d = parseDateSafe(r.date_e);
+      if (!d) continue;
+      const mon = startOfWeekMon(d);
+      const key = weekKeyLabel(mon);
+      if (key in countMap) countMap[key] += 1;
+    }
+    const labels = keys;
+    const counts = keys.map(k => countMap[k]);
+
+    // 범위 정보: 첫 키/끝 키를 그대로 표기
+    const info = `기간: ${labels[0]} ~ ${labels[labels.length-1]} (총 ${labels.length}주)`;
+    return { labels, counts, info };
+  }
+
+  function renderTable(labels, counts, mode) {
+    const tbody = document.querySelector('#tblCounts tbody');
     tbody.innerHTML = '';
     for (let i = 0; i < labels.length; i++) {
       tbody.insertAdjacentHTML('beforeend', `
-        <tr>
-          <td>${labels[i]}</td>
-          <td>${counts[i]}</td>
-        </tr>
+        <tr><td>${labels[i]}</td><td>${counts[i]}</td></tr>
       `);
     }
+    // 헤더/타이틀 전환
+    document.getElementById('tableTitle').textContent =
+      mode === 'week' ? '📋 주간 건수 표' : '📋 월별 건수 표';
+    document.getElementById('thLabel').textContent =
+      mode === 'week' ? '주(월~일 범위)' : '월(YYYY-MM)';
   }
 
   function renderChart(labels, counts) {
-    const canvas = document.getElementById('monthlyChart');
+    const canvas = document.getElementById('trendChart');
     const ctx = canvas.getContext('2d');
 
-    // 기존 차트 정리
-    if (chart) {
-      chart.destroy();
-      chart = null;
-    }
+    if (chart) { chart.destroy(); chart = null; }
 
     const showLine = document.getElementById('lineToggle').checked;
-
     const datasets = [
-      {
-        type: 'bar',
-        label: '월별 완료 건수',
-        data: counts,
-        borderWidth: 1
-      }
+      { type: 'bar', label: '완료 건수', data: counts, borderWidth: 1 }
     ];
     if (showLine) {
-      datasets.push({
-        type: 'line',
-        label: '추세선',
-        data: counts,
-        tension: 0.25,
-        pointRadius: 2
-      });
+      datasets.push({ type: 'line', label: '추세선', data: counts, tension: 0.25, pointRadius: 2 });
     }
 
-    // === Chart.js 옵션 하드닝(루프 방지) ===
     chart = new Chart(ctx, {
       type: 'bar',
       data: { labels, datasets },
       options: {
-        responsive: true,            // 반응형은 유지
-        resizeDelay: 150,            // 리사이즈 폭주 완화
-        maintainAspectRatio: false,  // 컨테이너 높이에 맞춤
-        animation: false,            // 리플로우 최소화
+        responsive: true,
+        resizeDelay: 150,
+        maintainAspectRatio: false,
+        animation: false,
         plugins: {
           legend: { display: true },
           tooltip: {
@@ -299,29 +302,59 @@
           }
         },
         scales: {
-          x: { title: { display: true, text: '월(YYYY-MM)' } },
+          x: { title: { display: true, text: '구간' } },
           y: { beginAtZero: true, title: { display: true, text: '건수' }, ticks: { precision: 0 } }
         }
       }
     });
   }
 
-  // === 안전한 단일 초기화 ===
+  function refresh(mode) {
+    // mode: 'month' | 'week'
+    let result = mode === 'week' ? buildWeeklyCounts() : buildMonthlyCounts();
+    labelsGlobal = result.labels;
+    countsGlobal = result.counts;
+
+    // Quick stats
+    const total = countsGlobal.reduce((a,b)=>a+b,0);
+    const activeBins = countsGlobal.filter(c=>c>0).length;
+    const avg = labelsGlobal.length ? Math.round(total / labelsGlobal.length) : 0;
+
+    document.getElementById('rangeInfo').textContent = result.info;
+    document.getElementById('quickStats').innerHTML = `
+      <div>총 완료건수: <b>${total}</b>건</div>
+      <div>활성 구간(>0): <b>${activeBins}</b></div>
+      <div>구간 평균: <b>${avg}</b>건</div>
+    `;
+
+    renderTable(labelsGlobal, countsGlobal, mode);
+    renderChart(labelsGlobal, countsGlobal);
+  }
+
+  // 초기 구동
   document.addEventListener('DOMContentLoaded', async () => {
-    if (initDone) return;  // 가드
+    if (initDone) return;
     initDone = true;
 
     await loadUserConfig();
-    await loadMonthlyCounts();
+    await loadItems();
 
-    // 이동 버튼(usr 유지)
-    document.getElementById('btnMap').onclick   = () => location.href = `map.html?usr=${usrParam}`;
-    document.getElementById('btnCal').onclick   = () => location.href = `cal.html?usr=${usrParam}`;
-    document.getElementById('btnReport').onclick= () => location.href = `done.html?usr=${usrParam}`;
+    // 내비게이션
+    document.getElementById('btnMap').onclick    = () => location.href = `map.html?usr=${usrParam}`;
+    document.getElementById('btnCal').onclick    = () => location.href = `cal.html?usr=${usrParam}`;
+    document.getElementById('btnReport').onclick = () => location.href = `done.html?usr=${usrParam}`;
 
-    // 토글은 차트만 재렌더 (DOM 변경 없음)
+    // 최초 진입: 월 단위 + 선형 체크(기본 checked 속성으로 반영)
+    refresh('month');
+
+    // 이벤트
     document.getElementById('lineToggle').addEventListener('change', () => {
+      // 차트만 다시 그림 (데이터/테이블은 그대로)
       renderChart(labelsGlobal, countsGlobal);
+    });
+    document.getElementById('granularity').addEventListener('change', (e) => {
+      const mode = e.target.value; // 'month' | 'week'
+      refresh(mode);
     });
   });
 </script>
