@@ -123,8 +123,8 @@
   </div>
 
   <script>
-    const supabase = window.supabase.createClient(
-      'https://xxmtxuhcdzidhrefrvwf.supabase.co',
+    const sb = window.sb.createClient(
+      'https://xxmtxuhcdzidhrefrvwf.sb.co',
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4bXR4dWhjZHppZGhyZWZydndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQwODAyNTQsImV4cCI6MjA1OTY1NjI1NH0.TaCCDlJvKrif_pZY038Qkglip8h-Qqjp2w2GlKwvoVg'
     );
 
@@ -197,7 +197,7 @@
 
     async function loadDoneData(year, month) {
       updateTitle(year, month);
-      const { data, error } = await supabase.from(config.s_table).select('*');
+      const { data, error } = await sb.from(config.s_table).select('*');
       if (error) {
         alert('데이터 불러오기 실패');
         return;

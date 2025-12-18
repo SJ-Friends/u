@@ -75,8 +75,8 @@
 
   <script>
     // Supabase 클라이언트 생성
-    const supabase = window.supabase.createClient(
-      'https://xxmtxuhcdzidhrefrvwf.supabase.co',
+    const sb = window.sb.createClient(
+      'https://xxmtxuhcdzidhrefrvwf.sb.co',
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4bXR4dWhjZHppZGhyZWZydndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQwODAyNTQsImV4cCI6MjA1OTY1NjI1NH0.TaCCDlJvKrif_pZY038Qkglip8h-Qqjp2w2GlKwvoVg'
     );
 
@@ -118,7 +118,7 @@
       const showDone = document.getElementById('showDone').checked;
       const showReserved = document.getElementById('showReserved').checked;
 
-      let { data, error } = await supabase.from(config.s_table)
+      let { data, error } = await sb.from(config.s_table)
         .select('*')
         .order(sortBy, { ascending: true });
       if (error) return alert('데이터 불러오기 실패');
@@ -155,14 +155,14 @@
     // 삭제 및 토글
     async function deleteSchedule(id) {
       if (!confirm('정말 삭제하시겠습니까?')) return;
-      await supabase.from(config.s_table).delete().eq('id', id);
+      await sb.from(config.s_table).delete().eq('id', id);
       loadSchedules(document.getElementById('sort').value);
     }
     async function toggleDone(id, checked) {
-      await supabase.from(config.s_table).update({ done: checked }).eq('id', id);
+      await sb.from(config.s_table).update({ done: checked }).eq('id', id);
     }
     async function toggleRes(id, checked) {
-      await supabase.from(config.s_table).update({ res_c: checked }).eq('id', id);
+      await sb.from(config.s_table).update({ res_c: checked }).eq('id', id);
     }
 
     // 초기 로딩

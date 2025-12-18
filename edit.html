@@ -190,8 +190,8 @@
   </div>
 
   <script>
-    const supabase = window.supabase.createClient(
-      'https://xxmtxuhcdzidhrefrvwf.supabase.co',
+    const sb = window.sb.createClient(
+      'https://xxmtxuhcdzidhrefrvwf.sb.co',
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4bXR4dWhjZHppZGhyZWZydndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQwODAyNTQsImV4cCI6MjA1OTY1NjI1NH0.TaCCDlJvKrif_pZY038Qkglip8h-Qqjp2w2GlKwvoVg'
     );
 
@@ -233,7 +233,7 @@
 
     async function loadData() {
       // ✅ 테이블명 동적으로 변경!
-      const { data, error } = await supabase.from(config.s_table).select('*').eq('id', id).single();
+      const { data, error } = await sb.from(config.s_table).select('*').eq('id', id).single();
       if (error || !data) return alert('데이터 로드 실패');
 
       document.getElementById('title').value = data.title;
@@ -317,7 +317,7 @@
     }
 document.getElementById('btnDelete').onclick = async function() {
       if (!confirm('정말로 이 일정을 삭제하시겠습니까?')) return;
-      const { error } = await supabase.from(config.s_table).delete().eq('id', id);
+      const { error } = await sb.from(config.s_table).delete().eq('id', id);
       if (error) return alert('삭제 실패: ' + (error.message || ''));
       alert('일정이 삭제되었습니다!');
       window.location.href = `list.html?usr=${usrParam}`;
@@ -350,7 +350,7 @@ document.getElementById('btnDelete').onclick = async function() {
       });
 
       // ✅ 테이블명 동적으로 변경!
-      const { error } = await supabase.from(config.s_table).update({
+      const { error } = await sb.from(config.s_table).update({
         title, loca, date_s, date_e, cost, tel, office, memo, done, res_d, res_t, res_p, res_c, link, kword, ...dayValues
       }).eq('id', id);
 
