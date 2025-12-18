@@ -133,7 +133,7 @@
 
   let config;
   async function loadUserConfig() {
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('usr')
       .select('b_name,name,s_table,t_table,i_table,logo')
       .eq('uid', usrParam)
