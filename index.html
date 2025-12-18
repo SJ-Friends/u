@@ -32,7 +32,7 @@
   </div>
 
   <div class="form-group">
-    <label for="title">업체명</label>
+    <label for="title">업체명 : </label>
     <input id="title" type="text"/>
   </div>
 
@@ -126,7 +126,7 @@
     // 사용자 설정 로드
     let config;
     async function loadUserConfig() {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('usr')
         .select('b_name,name,s_table,t_table,i_table,logo')
         .eq('uid', usrParam)
