@@ -48,11 +48,6 @@
   .memo-btns button { min-width: 0; }
 }
 
-
-
-
-
-
 #toast {
   position: fixed;
   top: 50%;
@@ -72,7 +67,7 @@
 
   <!-- 위치 -->
   <div class="field">
-    <label>위치</label>
+    <label>위치 :</label>
     <div class="btn-group">
       <input type="text" id="locaInput" />
       <button onclick="addToSentence('loca')">추가</button>
@@ -136,7 +131,6 @@
   </div>
 </div>
 
-
   <!-- 추가 문장 -->
   <div class="field">
     <label>추가 문장</label>
@@ -159,8 +153,6 @@
     </div>
   </div>
 
-
-
   <!-- Toast 메시지 -->
   <div id="toast">복사되었습니다!</div>
 
@@ -177,7 +169,7 @@ if (!usrParam) { alert('유효한 사용자 파라미터(usr)가 필요합니다
 let config;
 
 async function loadUserConfig() {
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('usr')
     .select('b_name,name,s_table,t_table,i_table,logo')
     .eq('uid', usrParam)
