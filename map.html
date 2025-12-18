@@ -90,7 +90,7 @@
     }
     let config;
     async function loadUserConfig() {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('usr')
         .select('b_name,name,s_table,t_table,i_table,logo')
         .eq('uid', usrParam)
@@ -127,7 +127,7 @@
       document.getElementById('fail-list').innerHTML = '';
 
       // === 동적으로 config.s_table 참조 ===
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from(config.s_table)
         .select('id, title, loca, done, res_c, date_s, date_e, mon, tue, wed, thu, fri, sat, sun');
       if (error) return alert('DB 데이터 불러오기 실패!');
