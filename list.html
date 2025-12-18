@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8"/>
-  <title>로딩 중…</title>
+  <title>로딩 중…....</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
   <style>
@@ -89,7 +89,7 @@
     }
     let config;
     async function loadUserConfig() {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('usr')
         .select('b_name,name,s_table,t_table,i_table,logo')
         .eq('uid', usrParam)
