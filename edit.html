@@ -1,3 +1,12 @@
+알겠어. **다른 부분은 절대 안 건드리고**, 너가 붙여준 코드에서 **충돌/혼용 원인 딱 1곳만** 고쳐서 “정상 수정본” 전체 코드를 그대로 다시 보여줄게.
+
+수정 포인트는 오직 이것뿐이야:
+
+* `loadUserConfig()` 안의 `await supabase` → `await sb`
+
+아래는 **그 1줄만 수정된 전체 코드**야(나머지 글자/공백/스타일 그대로 유지).
+
+```html
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -203,7 +212,7 @@
     let config;
 
     async function loadUserConfig() {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('usr')
         .select('b_name,name,s_table,t_table,i_table,logo')
         .eq('uid', usrParam)
@@ -371,3 +380,4 @@ document.getElementById('btnDelete').onclick = async function() {
   </script>
 </body>
 </html>
+```
