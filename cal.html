@@ -128,7 +128,8 @@
 
 
 <script>
-  const supabase = window.supabase.createClient(
+  // ✅ 핵심 수정: supabase(전역 라이브러리 이름)와 겹치지 않게 클라이언트 변수명을 변경
+  const sb = window.supabase.createClient(
     'https://xxmtxuhcdzidhrefrvwf.supabase.co',
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4bXR4dWhjZHppZGhyZWZydndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQwODAyNTQsImV4cCI6MjA1OTY1NjI1NH0.TaCCDlJvKrif_pZY038Qkglip8h-Qqjp2w2GlKwvoVg'
   );
@@ -154,7 +155,7 @@ function showToast(msg) {
   // 사용자 설정 로드
   let config;
   async function loadUserConfig() {
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('usr')
       .select('b_name,name,s_table,t_table,i_table,logo')
       .eq('uid', usrParam)
@@ -174,7 +175,7 @@ function showToast(msg) {
 
   // finalSentence 및 finalSentence2 로드/저장
   async function loadSentence() {
-    const { data } = await supabase.from(config.i_table)
+    const { data } = await sb.from(config.i_table)
       .select('invi, invi2').order('id', { ascending: false }).limit(1);
     if (data.length) {
       document.getElementById('finalSentence').value = data[0].invi || '';
@@ -185,7 +186,7 @@ function showToast(msg) {
 
 // 최신 invi 레코드(id, invi, invi2) 가져오기
 async function getLatestInviRow() {
-  const { data } = await supabase
+  const { data } = await sb
     .from(config.i_table)
     .select('id, invi, invi2')
     .order('id', { ascending: false })
@@ -199,7 +200,7 @@ async function saveSentence() {
   const latest = await getLatestInviRow();
   if (latest) {
     // 최신 레코드 update
-    const { error } = await supabase
+    const { error } = await sb
       .from(config.i_table)
       .update({ invi: text })
       .eq('id', latest.id);
@@ -207,7 +208,7 @@ async function saveSentence() {
     else alert('저장 완료!');
   } else {
     // 데이터 없으면 새 레코드 insert
-    const { error } = await supabase
+    const { error } = await sb
       .from(config.i_table)
       .insert({ invi: text });
     if (error) alert('저장 실패:' + error.message);
@@ -221,7 +222,7 @@ async function saveSentence2() {
   const latest = await getLatestInviRow();
   if (latest) {
     // 최신 레코드 update
-    const { error } = await supabase
+    const { error } = await sb
       .from(config.i_table)
       .update({ invi2: text2 })
       .eq('id', latest.id);
@@ -229,7 +230,7 @@ async function saveSentence2() {
     else alert('저장 완료!');
   } else {
     // 데이터 없으면 새 레코드 insert
-    const { error } = await supabase
+    const { error } = await sb
       .from(config.i_table)
       .insert({ invi2: text2 });
     if (error) alert('저장 실패:' + error.message);
@@ -271,7 +272,7 @@ function copySentence2() {
     const today = new Date(dateStr);
     const names = ['sun','mon','tue','wed','thu','fri','sat'];
     const now = names[today.getDay()];
-    const { data } = await supabase.from(config.s_table).select('*');
+    const { data } = await sb.from(config.s_table).select('*');
     const avail = [], dead = [], week = [];
     const getNext = (f, d) => { const dd = new Date(f); dd.setDate(dd.getDate() + (d + 7 - dd.getDay()) % 7); return dd; };
     const thisF = getNext(today, 5), thisS = getNext(today, 6), thisU = getNext(today, 0);
@@ -336,7 +337,7 @@ function copySentence2() {
         dayCellContent:args=>({html:args.date.getDate().toString()}),
         events:async()=>{
           const chk = document.getElementById('showDone').checked;
-          let { data } = await supabase.from(config.s_table).select('*');
+          let { data } = await sb.from(config.s_table).select('*');
           if (!chk) data = data.filter(i=>!i.done);
           const offs=[...new Set(data.map(i=>i.office||'기타'))];
           const pal=['#e9fdc8','#c4f2dc','#fddd85','#f9cccc','#bbcbf6'];
