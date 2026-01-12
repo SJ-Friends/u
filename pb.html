@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>핀볼 룰렛</title>
+  <style>
+    :root{
+      --bg1:#fff3f7; --bg2:#f2fbff; --ink:#13203a;
+      --muted:rgba(19,32,58,.65);
+      --card:rgba(255,255,255,.72); --card2:rgba(255,255,255,.88);
+      --stroke:rgba(19,32,58,.10);
+      --shadow:0 18px 50px rgba(25,45,95,.18);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; height:100vh; overflow:hidden;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",sans-serif;
+      color:var(--ink);
+      background:
+        radial-gradient(1000px 700px at 12% 10%, #ffd7e6 0%, transparent 60%),
+        radial-gradient(1100px 700px at 80% 20%, #cde8ff 0%, transparent 60%),
+        radial-gradient(900px 600px at 55% 90%, #d8fff1 0%, transparent 60%),
+        linear-gradient(180deg,var(--bg1),var(--bg2));
+    }
+    .app{position:relative;width:100%;height:100vh;overflow:hidden}
+    .stageWrap{
+      position:absolute; inset:0;
+      display:grid; place-items:center;
+      padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom) 12px;
+    }
+    .stage{
+      width:min(92vw, 460px);
+      aspect-ratio: 70 / 150;
+      border-radius:28px;
+      border:1px solid rgba(19,32,58,.10);
+      box-shadow:0 26px 80px rgba(25,45,95,.22);
+      background:
+        radial-gradient(800px 520px at 20% 10%, rgba(255,214,232,.90), transparent 55%),
+        radial-gradient(800px 520px at 80% 18%, rgba(205,232,255,.90), transparent 55%),
+        radial-gradient(700px 520px at 55% 92%, rgba(216,255,241,.90), transparent 55%),
+        linear-gradient(180deg, rgba(255,255,255,.75), rgba(255,255,255,.35));
+      overflow:hidden; position:relative;
+    }
+    canvas#world{width:100%;height:100%;display:block}
+
+    .hud{
+      position:absolute; left:10px; top:10px;
+      display:flex; gap:8px; z-index:5;
+      padding-top: env(safe-area-inset-top);
+    }
+    .pill{
+      padding:9px 10px;
+      border-radius:14px;
+      background:rgba(255,255,255,.78);
+      border:1px solid rgba(19,32,58,.10);
+      box-shadow:0 14px 30px rgba(25,45,95,.14);
+      font-weight:900;
+      font-variant-numeric: tabular-nums;
+      white-space:nowrap;
+      font-size:12px;
+    }
+    .fabRow{
+      position:absolute; right:10px; top:10px;
+      display:flex; gap:8px; z-index:5;
+      padding-top: env(safe-area-inset-top);
+    }
+    .fab{
+      width:40px; height:40px;
+      border-radius:14px;
+      display:grid; place-items:center;
+      font-size:18px; font-weight:900;
+      background:rgba(255,255,255,.80);
+      border:1px solid rgba(19,32,58,.10);
+      box-shadow:0 14px 30px rgba(25,45,95,.14);
+      user-select:none;
+      cursor:pointer;
+      padding:0;
+    }
+
+    .setup{
+      position:absolute; inset:0;
+      display:flex; flex-direction:column;
+      gap:12px;
+      padding:14px;
+      background:linear-gradient(180deg, rgba(255,255,255,.70), rgba(255,255,255,.55));
+      backdrop-filter: blur(10px);
+      z-index:6;
+    }
+    .hero{
+      border:1px solid var(--stroke);
+      background:linear-gradient(180deg,var(--card2),var(--card));
+      border-radius:20px;
+      padding:14px;
+      box-shadow:var(--shadow);
+    }
+    .title{font-weight:950; letter-spacing:-.3px; font-size:16px; margin:0 0 6px 0;}
+    .subtitle{margin:0; font-size:12px; line-height:1.45; color:var(--muted);}
+    .controls{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+    button{
+      appearance:none;
+      border:1px solid rgba(19,32,58,.10);
+      background:rgba(255,255,255,.85);
+      color:var(--ink);
+      border-radius:14px;
+      padding:10px 10px;
+      font-weight:850;
+      cursor:pointer;
+      box-shadow:0 10px 22px rgba(25,45,95,.10);
+      transition:transform .05s ease;
+      user-select:none;
+    }
+    button:active{transform:translateY(1px)}
+    button.primary{background:linear-gradient(180deg, rgba(107,123,255,.95), rgba(107,123,255,.80)); color:#fff; border-color:rgba(107,123,255,.25);}
+    button.ok{background:linear-gradient(180deg, rgba(45,212,191,.95), rgba(45,212,191,.80)); color:#05302b; border-color:rgba(45,212,191,.25);}
+    button.danger{background:linear-gradient(180deg, rgba(255,91,126,.95), rgba(255,91,126,.80)); color:#fff; border-color:rgba(255,91,126,.25);}
+    button.ghost{background:rgba(255,255,255,.72);}
+    button:disabled{opacity:.45; cursor:not-allowed;}
+
+    .list{
+      flex:1;
+      overflow:auto;
+      border-radius:20px;
+      border:1px solid rgba(19,32,58,.10);
+      background:linear-gradient(180deg, rgba(255,255,255,.60), rgba(255,255,255,.40));
+      box-shadow:var(--shadow);
+      padding:10px;
+    }
+    .item{
+      display:grid;
+      grid-template-columns:34px 1fr 42px;
+      gap:8px;
+      align-items:center;
+      padding:9px;
+      border-radius:16px;
+      border:1px solid rgba(19,32,58,.08);
+      background:rgba(255,255,255,.65);
+      margin-bottom:8px;
+    }
+    .badge{
+      width:34px; height:34px;
+      display:grid; place-items:center;
+      border-radius:13px;
+      font-weight:950;
+      background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.55));
+      border:1px solid rgba(19,32,58,.10);
+      box-shadow:0 10px 22px rgba(25,45,95,.10);
+    }
+    input[type="text"]{
+      width:100%;
+      border-radius:14px;
+      border:1px solid rgba(19,32,58,.12);
+      padding:10px 10px;
+      font-weight:750;
+      background:rgba(255,255,255,.88);
+      color:var(--ink);
+      outline:none;
+    }
+    input[type="text"]:focus{
+      border-color:rgba(107,123,255,.45);
+      box-shadow:0 0 0 5px rgba(107,123,255,.15);
+    }
+    .bottomBar{display:flex; gap:10px;}
+    .bottomBar button{flex:1; padding:12px 12px; border-radius:16px;}
+    .hint{margin-top:8px; color:var(--muted); font-size:12px; line-height:1.45;}
+
+    .flash{
+      position:absolute; inset:0;
+      pointer-events:none;
+      opacity:0;
+      transition:opacity .12s ease;
+      z-index:7;
+      background:
+        radial-gradient(500px 420px at 50% 80%, rgba(255,255,255,.65), transparent 55%),
+        radial-gradient(520px 420px at 30% 25%, rgba(107,123,255,.35), transparent 55%),
+        radial-gradient(520px 420px at 70% 30%, rgba(45,212,191,.28), transparent 55%);
+    }
+    .flash.on{opacity:1}
+
+    .overlay{
+      position:absolute; inset:0;
+      display:none; place-items:center;
+      background:rgba(15,25,50,.25);
+      backdrop-filter: blur(10px);
+      z-index:10; padding:14px;
+    }
+    .overlay.show{display:grid}
+    .card{
+      width:min(92%, 420px);
+      border-radius:22px;
+      border:1px solid rgba(19,32,58,.10);
+      background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.78));
+      box-shadow:0 24px 70px rgba(25,45,95,.22);
+      padding:14px;
+    }
+    .card h2{margin:0 0 10px 0; font-size:16px; letter-spacing:-.3px; font-weight:950;}
+    .ranklist{display:flex; flex-direction:column; gap:8px; margin:10px 0; max-height:50vh; overflow:auto;}
+    .rankrow{
+      display:grid;
+      grid-template-columns:54px 1fr 84px;
+      gap:8px;
+      align-items:center;
+      padding:10px;
+      border-radius:16px;
+      border:1px solid rgba(19,32,58,.08);
+      background:rgba(255,255,255,.72);
+    }
+    .ranknum{
+      width:54px; height:36px;
+      border-radius:14px;
+      display:grid; place-items:center;
+      font-weight:950;
+      color:#0b1b43;
+      background:linear-gradient(180deg, rgba(107,123,255,.25), rgba(107,123,255,.12));
+      border:1px solid rgba(107,123,255,.25);
+    }
+    .time{
+      text-align:right;
+      color:rgba(19,32,58,.65);
+      font-variant-numeric: tabular-nums;
+      font-weight:800;
+      font-size:12px;
+    }
+    .footerBtns{display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;}
+    .hidden{display:none !important;}
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="stageWrap">
+    <div class="stage" id="stage">
+      <div class="hud">
+        <div id="timerPill" class="pill">⏱ 30.0s</div>
+        <div id="statusPill" class="pill">⬇️ 하단 퍼널-무스턱</div>
+      </div>
+
+      <div class="fabRow">
+        <button id="soundBtn" class="fab" title="사운드">🔊</button>
+        <button id="openSetup" class="fab" title="설정">⚙️</button>
+        <button id="restart" class="fab" title="재시작">⟲</button>
+      </div>
+
+      <canvas id="world"></canvas>
+      <div id="flash" class="flash"></div>
+
+      <section id="setupScreen" class="setup">
+        <div class="hero">
+          <div class="title">🎯 핀볼 룰렛</div>
+          <p class="subtitle">
+
+          </p>
+          <div class="controls">
+            <button id="addBall" class="ok">+ 공 추가</button>
+            <button id="resetNames" class="danger">이름 초기화</button>
+          </div>
+          <div class="hint">START 하면 게임만 보입니다. 이름은 자동 저장!</div>
+        </div>
+
+        <div id="ballList" class="list"></div>
+
+        <div class="bottomBar">
+          <button id="start" class="primary">▶ START</button>
+          <button id="resetGame" class="ghost">↺</button>
+        </div>
+      </section>
+
+      <div id="overlay" class="overlay">
+        <div class="card">
+          <h2>🏁 Rank</h2>
+          <div id="rankList" class="ranklist"></div>
+          <div class="footerBtns">
+            <button id="closeOverlay">닫기</button>
+            <button id="playAgain" class="primary">다시 하기</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+<script>
+const { Engine, Render, Runner, Bodies, Body, Composite, Constraint, Events } = Matter;
+
+const stage = document.getElementById("stage");
+const canvas = document.getElementById("world");
+const flashEl = document.getElementById("flash");
+
+const setupScreen = document.getElementById("setupScreen");
+const ballListEl  = document.getElementById("ballList");
+const overlay     = document.getElementById("overlay");
+const rankListEl  = document.getElementById("rankList");
+const timerPill   = document.getElementById("timerPill");
+const statusPill  = document.getElementById("statusPill");
+const soundBtn    = document.getElementById("soundBtn");
+
+const STORAGE_KEY = "pinballRouletteNames.s25.noStuck.v11";
+function loadNames(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return ["공1","공2","공3","공4"];
+    const arr = JSON.parse(raw);
+    if(!Array.isArray(arr) || arr.length===0) return ["공1","공2","공3","공4"];
+    return arr.map((x,i)=> (String(x||"").trim() || `공${i+1}`));
+  }catch{ return ["공1","공2","공3","공4"]; }
+}
+function saveNames(names){ localStorage.setItem(STORAGE_KEY, JSON.stringify(names)); }
+function sanitizeName(x,i){ const s=String(x??"").trim(); return s || `공${i+1}`; }
+
+let names = loadNames();
+function renderNameList(){
+  ballListEl.innerHTML = "";
+  names.forEach((n, idx)=>{
+    const row = document.createElement("div");
+    row.className = "item";
+
+    const badge = document.createElement("div");
+    badge.className = "badge";
+    badge.textContent = idx+1;
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = n;
+    input.placeholder = `공${idx+1} 이름`;
+    input.addEventListener("input", ()=>{
+      names[idx] = input.value;
+      saveNames(names);
+    });
+
+    const del = document.createElement("button");
+    del.className = "danger";
+    del.textContent = "–";
+    del.disabled = (names.length <= 1);
+    del.addEventListener("click", ()=>{
+      names.splice(idx,1);
+      saveNames(names);
+      renderNameList();
+    });
+
+    row.appendChild(badge);
+    row.appendChild(input);
+    row.appendChild(del);
+    ballListEl.appendChild(row);
+  });
+}
+renderNameList();
+
+document.getElementById("addBall").addEventListener("click", ()=>{
+  names.push(`공${names.length+1}`);
+  saveNames(names);
+  renderNameList();
+});
+document.getElementById("resetNames").addEventListener("click", ()=>{
+  names = ["공1","공2","공3","공4"];
+  saveNames(names);
+  renderNameList();
+});
+
+/* Matter init */
+let engine = Engine.create();
+engine.world.gravity.y = 0.92;
+engine.positionIterations = 10;
+engine.velocityIterations = 8;
+
+let render = Render.create({
+  element: stage,
+  canvas,
+  engine,
+  options:{
+    width: 300, height: 600,
+    wireframes:false,
+    background:"transparent",
+    pixelRatio: window.devicePixelRatio || 1
+  }
+});
+Render.run(render);
+let runner = Runner.create();
+Runner.run(runner, engine);
+
+let W=0, H=0;
+
+const RUN_TIME_MS = 30000;
+let running=false;
+let startedAt=0;
+let dnfTimer=null;
+let watchdogTimer=null;
+
+let ballBodies=[];
+let arrived=[];
+let arrivedSet=new Set();
+
+let finishZone=null;
+let laneHalf=22;
+
+/* 물성 (튀김 억제) */
+const MAT_BALL = { restitution:0.02, friction:0.05, frictionAir:0.011, density:0.0026 };
+const MAT_PINS = { restitution:0.010, friction:0.20 };
+const MAT_RAIL = { restitution:0.002, friction:0.10 };  // ✅ 레일 튀김 거의 없음
+
+/* 속도 캡 */
+const MAX_SPEED = 9.2;
+const MAX_ANG   = 0.28;
+
+/* 퍼널 파라미터 */
+let funnelY=0;
+let funnelZoneTop=0;
+let funnelHoleX1=0, funnelHoleX2=0;
+
+/* Sound */
+let audioCtx=null;
+let soundOn=true;
+function updateSoundIcon(){ soundBtn.textContent = soundOn ? "🔊" : "🔇"; }
+updateSoundIcon();
+
+async function ensureAudio(){
+  if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state !== "running"){
+    try{ await audioCtx.resume(); }catch(e){}
+  }
+}
+function sfxArrive(){
+  if(!soundOn) return;
+  if(!audioCtx || audioCtx.state!=="running") return;
+  const t=audioCtx.currentTime;
+  const o=audioCtx.createOscillator();
+  const g=audioCtx.createGain();
+  o.type="square";
+  o.frequency.setValueAtTime(540,t);
+  o.frequency.exponentialRampToValueAtTime(260,t+0.06);
+  g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(0.16,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+0.11);
+  o.connect(g).connect(audioCtx.destination);
+  o.start(t); o.stop(t+0.12);
+}
+function sfxHit(strength=1){
+  if(!soundOn) return;
+  if(!audioCtx || audioCtx.state!=="running") return;
+  const t=audioCtx.currentTime;
+
+  const o1=audioCtx.createOscillator();
+  const g1=audioCtx.createGain();
+  o1.type="triangle";
+  o1.frequency.setValueAtTime(280 + 140*strength, t);
+  o1.frequency.exponentialRampToValueAtTime(150, t+0.05);
+  g1.gain.setValueAtTime(0, t);
+  g1.gain.linearRampToValueAtTime(0.08 + 0.05*strength, t+0.008);
+  g1.gain.exponentialRampToValueAtTime(0.0001, t+0.08);
+
+  const o2=audioCtx.createOscillator();
+  const g2=audioCtx.createGain();
+  o2.type="sine";
+  o2.frequency.setValueAtTime(120, t);
+  o2.frequency.exponentialRampToValueAtTime(80, t+0.06);
+  g2.gain.setValueAtTime(0, t);
+  g2.gain.linearRampToValueAtTime(0.06 + 0.05*strength, t+0.01);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t+0.10);
+
+  o1.connect(g1).connect(audioCtx.destination);
+  o2.connect(g2).connect(audioCtx.destination);
+  o1.start(t); o2.start(t);
+  o1.stop(t+0.09); o2.stop(t+0.12);
+}
+
+/* Flash */
+let flashTimer=null;
+function flash(){
+  flashEl.classList.add("on");
+  if(flashTimer) clearTimeout(flashTimer);
+  flashTimer=setTimeout(()=>flashEl.classList.remove("on"),120);
+}
+
+/* Helpers */
+function clamp(v,min,max){ return Math.max(min, Math.min(max,v)); }
+
+/* Resize */
+function resizeCanvas(){
+  const r = stage.getBoundingClientRect();
+  W = Math.max(280, Math.floor(r.width));
+  H = Math.max(520, Math.floor(r.height));
+  render.options.width=W; render.options.height=H;
+  const pr = window.devicePixelRatio || 1;
+  render.canvas.width=W*pr; render.canvas.height=H*pr;
+  render.canvas.style.width=W+"px"; render.canvas.style.height=H+"px";
+}
+window.addEventListener("resize", ()=>{
+  resizeCanvas();
+  if(running) restartRound();
+  else buildWorld();
+});
+
+/* World */
+function clearWorld(){
+  Composite.clear(engine.world, false);
+  ballBodies=[]; arrived=[]; arrivedSet=new Set(); running=false;
+  if(dnfTimer){clearTimeout(dnfTimer); dnfTimer=null;}
+  if(watchdogTimer){clearInterval(watchdogTimer); watchdogTimer=null;}
+}
+
+function buildWorld(){
+  clearWorld();
+
+  const thick=54;
+  const chamferWall={radius:18};
+
+  const wallInset=22;
+  Composite.add(engine.world,[
+    Bodies.rectangle(-wallInset, H/2, thick, H+260, {isStatic:true, angle: 0.06, chamfer:chamferWall, render:{fillStyle:"rgba(19,32,58,0.10)"}}),
+    Bodies.rectangle(W+wallInset, H/2, thick, H+260, {isStatic:true, angle:-0.06, chamfer:chamferWall, render:{fillStyle:"rgba(19,32,58,0.10)"}}),
+    Bodies.rectangle(W/2, -thick/2, W+260, thick, {isStatic:true, render:{visible:false}}),
+    Bodies.rectangle(W/2, H+thick/2, W+300, thick, {isStatic:true, chamfer:chamferWall, render:{fillStyle:"rgba(19,32,58,0.10)"}})
+  ]);
+
+  // 벽쪽 핀
+  const railPinR=7.0, railGapY=80, railTop=120, railBottom=H-300;
+  for(let y=railTop; y<=railBottom; y+=railGapY){
+    Composite.add(engine.world,[
+      Bodies.circle(28,y,railPinR,{isStatic:true, ...MAT_PINS, render:{fillStyle:"rgba(255,91,126,0.30)"}}),
+      Bodies.circle(46,y+railGapY/2,railPinR,{isStatic:true, ...MAT_PINS, render:{fillStyle:"rgba(107,123,255,0.30)"}}),
+      Bodies.circle(W-28,y,railPinR,{isStatic:true, ...MAT_PINS, render:{fillStyle:"rgba(45,212,191,0.30)"}}),
+      Bodies.circle(W-46,y+railGapY/2,railPinR,{isStatic:true, ...MAT_PINS, render:{fillStyle:"rgba(255,183,3,0.30)"}})
+    ]);
+  }
+
+  // 중앙 핀 필드
+  const minGapX=60, minGapY=80;
+  const padX=Math.max(54, W*0.14);
+  const usableW=W-padX*2;
+
+  let cols=Math.floor(usableW/minGapX)+1;
+  cols=clamp(cols,7,9);
+  const gapX=Math.max(minGapX, usableW/(cols-1));
+
+  const topY=150;
+  const funnelTopY=H-270;
+  const bottomY=funnelTopY-90;
+  const usableH=Math.max(260, bottomY-topY);
+
+  let rows=Math.floor(usableH/minGapY);
+  rows=clamp(rows,6,9);
+  const gapY=Math.max(minGapY, usableH/rows);
+
+  const pinR=7.2;
+  const tints=[
+    "rgba(45,212,191,0.34)",
+    "rgba(107,123,255,0.34)",
+    "rgba(255,183,3,0.34)",
+    "rgba(255,91,126,0.34)"
+  ];
+
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const offset=(r%2)?gapX/2:0;
+      const x=padX+c*gapX+offset;
+      const y=topY+r*gapY;
+      if(x<70||x>W-70) continue;
+      Composite.add(engine.world, Bodies.circle(x,y,pinR,{
+        isStatic:true, ...MAT_PINS,
+        render:{fillStyle:tints[(r+c)%tints.length], strokeStyle:"rgba(255,255,255,0.55)", lineWidth:1}
+      }));
+    }
+  }
+
+  /* 로테이터 */
+  function addRotator(cx, cy, length, thickness, clockwise, speed, color){
+    const bar=Bodies.rectangle(cx,cy,length,thickness,{
+      density:0.01,
+      frictionAir:0.07,
+      friction:0.38,
+      restitution:0.012,
+      chamfer:{radius:10},
+      render:{fillStyle:color}
+    });
+    const pivot=Bodies.circle(cx,cy,7,{isStatic:true, ...MAT_PINS, render:{fillStyle:"rgba(255,255,255,0.65)"}});
+    const joint=Constraint.create({bodyA:bar, pointA:{x:0,y:0}, bodyB:pivot, pointB:{x:0,y:0}, stiffness:1, length:0});
+
+    Events.on(engine,"beforeUpdate",()=>{
+      if(!running) return;
+      Body.setAngularVelocity(bar,(clockwise?1:-1)*speed);
+    });
+
+    Composite.add(engine.world,[bar,pivot,joint]);
+  }
+
+  const baseLen = Math.min(220, W*0.68);
+  const halfLen = baseLen * 0.48;
+  const t = 15;
+
+  // 중앙 5개
+  addRotator(W*0.50, H*0.33, halfLen, t, true,  0.022, "rgba(255,91,126,0.18)");
+  addRotator(W*0.30, H*0.46, halfLen, t, false, 0.021, "rgba(45,212,191,0.18)");
+  addRotator(W*0.70, H*0.46, halfLen, t, true,  0.021, "rgba(107,123,255,0.18)");
+  addRotator(W*0.42, H*0.62, halfLen, t, false, 0.020, "rgba(255,183,3,0.18)");
+  addRotator(W*0.58, H*0.62, halfLen, t, true,  0.020, "rgba(139,92,246,0.18)");
+
+  // 벽쪽 4개
+  const wallXPad = 86;
+  addRotator(wallXPad,     H*0.40, halfLen*0.72, t, true,  0.023, "rgba(107,123,255,0.16)");
+  addRotator(W-wallXPad,   H*0.40, halfLen*0.72, t, false, 0.023, "rgba(45,212,191,0.16)");
+  addRotator(wallXPad,     H*0.58, halfLen*0.70, t, false, 0.022, "rgba(255,91,126,0.16)");
+  addRotator(W-wallXPad,   H*0.58, halfLen*0.70, t, true,  0.022, "rgba(255,183,3,0.16)");
+
+  /* 상단 범퍼 2개만 */
+  function addBumper(cx, cy, r){
+    Composite.add(engine.world, Bodies.circle(cx,cy,r,{
+      isStatic:true,
+      restitution:0.06,
+      friction:0.28,
+      render:{fillStyle:"rgba(255,183,3,0.14)", strokeStyle:"rgba(255,255,255,0.55)", lineWidth:1}
+    }));
+  }
+  addBumper(W*0.28, H*0.28, 14);
+  addBumper(W*0.72, H*0.28, 14);
+
+  /* ✅✅ 하단 퍼널: 마지막 경사 2바만 남기고 전부 삭제 + 간격 확장 */
+  const ballR = 18;
+
+  // ✅ 구멍(레일 사이) 폭을 확 늘림: 공 1개는 여유, 2개가 겹쳐도 빠질 확률↑
+  const holeW = 140;                // ★ 여기 핵심 (이전보다 확 넓음)
+  funnelHoleX1 = W/2 - holeW/2;
+  funnelHoleX2 = W/2 + holeW/2;
+
+  // 퍼널 위치(조금 더 위로)
+  funnelY = H - 250;
+  funnelZoneTop = funnelY - 160;
+
+  // 경사 각도는 완만하게(튕김↓) + 길이 조금 길게(안정적으로 중앙으로)
+  const railAngle = 0.50;
+  const railThickness = 18;
+  const railLen = Math.min(330, W*0.88);
+
+  // 레일 중심을 구멍을 “확실히 열어두는” 위치로
+  const leftRailCx  = (W/2 - holeW/2) - 72;
+  const rightRailCx = (W/2 + holeW/2) + 72;
+
+  Composite.add(engine.world, [
+    Bodies.rectangle(leftRailCx, funnelY, railLen, railThickness, {
+      isStatic:true, angle:+railAngle, chamfer:{radius:18}, ...MAT_RAIL,
+      render:{ fillStyle:"rgba(107,123,255,0.18)" }
+    }),
+    Bodies.rectangle(rightRailCx, funnelY, railLen, railThickness, {
+      isStatic:true, angle:-railAngle, chamfer:{radius:18}, ...MAT_RAIL,
+      render:{ fillStyle:"rgba(45,212,191,0.18)" }
+    })
+  ]);
+
+  // ✅ 레인만 유지(순위 측정)
+  laneHalf = 22;
+  const laneWallH = 210;
+  Composite.add(engine.world, [
+    Bodies.rectangle(W/2 - laneHalf, H-78, 12, laneWallH, { isStatic:true, chamfer:{radius:12}, ...MAT_RAIL, render:{ fillStyle:"rgba(19,32,58,0.10)" } }),
+    Bodies.rectangle(W/2 + laneHalf, H-78, 12, laneWallH, { isStatic:true, chamfer:{radius:12}, ...MAT_RAIL, render:{ fillStyle:"rgba(19,32,58,0.10)" } })
+  ]);
+
+  finishZone = {
+    x1: W/2 - (laneHalf - 2),
+    x2: W/2 + (laneHalf - 2),
+    y: H - 52
+  };
+
+  Composite.add(engine.world, Bodies.rectangle(W/2, finishZone.y, W*0.55, 10, {
+    isStatic:true, ...MAT_RAIL,
+    render:{ fillStyle:"rgba(34,197,94,0.12)" }
+  }));
+}
+
+/* Balls */
+const BALL_COLORS = [
+  ["#ff4d6d","#ffd1dc"],
+  ["#4d7cff","#cfe0ff"],
+  ["#2dd4bf","#cffff7"],
+  ["#ffb703","#fff1c7"],
+  ["#8b5cf6","#e7d9ff"],
+  ["#ff7a18","#ffe1c8"],
+  ["#22c55e","#d8ffd9"],
+  ["#06b6d4","#d6fbff"],
+];
+
+function spawnBalls(){
+  ballBodies=[];
+  const current = names.map(sanitizeName);
+  const count = current.length;
+
+  const topY = 70;
+  const margin = Math.max(54, W*0.12);
+  const span = W - margin*2;
+  const step = (count<=1) ? 0 : (span / (count-1));
+
+  for(let i=0;i<count;i++){
+    const x = (count===1) ? W/2 : (margin + step*i);
+    const y = topY;
+
+    const ball = Bodies.circle(x, y, 18, {
+      ...MAT_BALL,
+      label:`BALL_${i}`,
+      render:{ visible:false }
+    });
+
+    ball.customName = current[i];
+    const cp = BALL_COLORS[i % BALL_COLORS.length];
+    ball.colorMain = cp[0];
+    ball.colorHi   = cp[1];
+    ball.isGold = false;
+
+    Body.applyForce(ball, {x,y}, { x:(Math.random()-0.5)*0.0010, y:0 });
+
+    ballBodies.push(ball);
+    Composite.add(engine.world, ball);
+  }
+}
+
+/* 3D draw */
+function drawBall(ctx, b){
+  const {x,y} = b.position;
+  const r = b.circleRadius || 18;
+
+  ctx.save();
+  ctx.globalAlpha = 0.18;
+  ctx.beginPath();
+  ctx.ellipse(x+2, y+6, r*0.95, r*0.78, 0, 0, Math.PI*2);
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.fill();
+  ctx.restore();
+
+  const g = ctx.createRadialGradient(x-r*0.35, y-r*0.35, r*0.15, x, y, r*1.08);
+  g.addColorStop(0, b.colorHi || "#fff");
+  g.addColorStop(0.48, b.colorMain || "#6b7bff");
+  g.addColorStop(1, "rgba(0,0,0,0.22)");
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x,y,r,0,Math.PI*2);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.lineWidth = 1.3;
+  ctx.strokeStyle = "rgba(255,255,255,0.55)";
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(x-r*0.35, y-r*0.35, r*0.22, 0, Math.PI*2);
+  ctx.fillStyle = "rgba(255,255,255,0.78)";
+  ctx.fill();
+
+  const name = (b.customName||"").trim();
+  const text = (name.length>10)?name.slice(0,10)+"…":name;
+  ctx.font = "900 12px system-ui,-apple-system,Segoe UI,Roboto,'Noto Sans KR',sans-serif";
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+  ctx.lineWidth=4;
+  ctx.strokeStyle="rgba(0,0,0,0.35)";
+  ctx.fillStyle="rgba(255,255,255,0.95)";
+  ctx.strokeText(text,x,y);
+  ctx.fillText(text,x,y);
+
+  if(b.isGold){
+    ctx.font = "900 14px system-ui,-apple-system,Segoe UI,Roboto,'Noto Sans KR',sans-serif";
+    ctx.textAlign="center";
+    ctx.textBaseline="bottom";
+    ctx.lineWidth=4;
+    ctx.strokeStyle="rgba(0,0,0,0.35)";
+    ctx.fillStyle="rgba(255,245,195,0.98)";
+    ctx.strokeText("👑", x, y - r - 2);
+    ctx.fillText("👑", x, y - r - 2);
+  }
+  ctx.restore();
+}
+Events.on(render, "afterRender", ()=>{
+  const ctx = render.context;
+  for(const b of ballBodies) drawBall(ctx, b);
+});
+
+/* ✅ 하단 퍼널: “위로 튀기 금지” + 중앙 유도 */
+Events.on(engine, "beforeUpdate", ()=>{
+  if(!running) return;
+
+  for(const b of ballBodies){
+    if(arrivedSet.has(b.id)) continue;
+
+    // 속도 캡
+    const v=b.velocity;
+    const s=Math.hypot(v.x,v.y);
+    if(s>MAX_SPEED){
+      const k=MAX_SPEED/s;
+      Body.setVelocity(b,{x:v.x*k, y:v.y*k});
+    }
+    if(Math.abs(b.angularVelocity)>MAX_ANG){
+      Body.setAngularVelocity(b, Math.sign(b.angularVelocity)*MAX_ANG);
+    }
+
+    // 퍼널 구간: 위로 속도는 항상 0으로 (바에서 튕겨 올라가는 현상 제거)
+    if(b.position.y > funnelZoneTop){
+      if(b.velocity.y < 0){
+        Body.setVelocity(b, { x: b.velocity.x * 0.70, y: 0 });
+      }
+      const cx=W/2;
+      const dx=(cx - b.position.x);
+      const inHoleX = (b.position.x > funnelHoleX1 && b.position.x < funnelHoleX2);
+
+      // 중앙/하강 보조 (가볍게)
+      const downForce = inHoleX ? 0.00024 : 0.00014;
+      const centerForce = clamp(dx / W, -0.7, 0.7) * 0.00010;
+      Body.applyForce(b, b.position, { x:centerForce, y:downForce });
+    }
+  }
+});
+
+/* Finish */
+function markArrived(ball){
+  if(arrivedSet.has(ball.id)) return;
+  arrivedSet.add(ball.id);
+
+  const ms = performance.now() - startedAt;
+  arrived.push({ name: ball.customName || "이름없음", ms, id: ball.id });
+
+  flash();
+  sfxArrive();
+  if(arrived.length === 1){ ball.isGold = true; }
+
+  Body.setVelocity(ball, {x:0,y:0});
+  Body.setAngularVelocity(ball, 0);
+  Body.setStatic(ball, true);
+  Body.setPosition(ball, { x: W/2, y: finishZone.y + 12 + (arrived.length-1)*3 });
+}
+
+function checkFinish(){
+  if(!running || !finishZone) return;
+  for(const b of ballBodies){
+    if(arrivedSet.has(b.id)) continue;
+    if(b.position.y > finishZone.y && b.position.x > finishZone.x1 && b.position.x < finishZone.x2){
+      markArrived(b);
+    }
+  }
+  if(arrived.length === ballBodies.length){
+    running = false;
+    showRank();
+  }
+}
+Events.on(engine, "afterUpdate", checkFinish);
+
+/* Collision SFX */
+let lastHitAt = 0;
+Events.on(engine, "collisionStart", (ev)=>{
+  if(!running || !audioCtx || audioCtx.state!=="running" || !soundOn) return;
+  const now = performance.now();
+  if(now - lastHitAt < 80) return;
+
+  for(const p of ev.pairs){
+    const a=p.bodyA, b=p.bodyB;
+    const isBall = (x)=> x && x.label && x.label.startsWith("BALL_");
+    if(!(isBall(a) || isBall(b))) continue;
+
+    const va=a.velocity||{x:0,y:0};
+    const vb=b.velocity||{x:0,y:0};
+    const rel=Math.hypot(va.x-vb.x, va.y-vb.y);
+    if(rel>1.8){
+      lastHitAt=now;
+      const strength=clamp((rel-1.8)/4.8, 0.25, 1.0);
+      sfxHit(strength);
+      break;
+    }
+  }
+});
+
+/* Watchdog: 퍼널 근처 정체 강제 해소 (최소 개입) */
+function startWatchdog(){
+  if(watchdogTimer) clearInterval(watchdogTimer);
+
+  const state = new Map();
+  watchdogTimer = setInterval(()=>{
+    if(!running) return;
+
+    const STUCK_MS=1200;
+    const SPEED_EPS=0.085;
+
+    for(const b of ballBodies){
+      if(arrivedSet.has(b.id)) continue;
+
+      const v=b.velocity||{x:0,y:0};
+      const speed=Math.hypot(v.x,v.y);
+
+      const rec=state.get(b.id)||{t:0, y:b.position.y};
+      const progressed=(b.position.y > rec.y + 6);
+      let t=rec.t;
+
+      if(speed<SPEED_EPS && !progressed) t+=250;
+      else t=0;
+
+      state.set(b.id,{t,y:b.position.y});
+
+      if(t>=STUCK_MS){
+        const nearFunnel = b.position.y > (funnelZoneTop - 20);
+        const dx = (W/2 - b.position.x);
+
+        if(nearFunnel){
+          Body.setPosition(b, {
+            x: b.position.x + clamp(dx*0.22, -26, 26),
+            y: b.position.y + 6
+          });
+          Body.setVelocity(b, { x: b.velocity.x*0.35, y: Math.max(1.8, b.velocity.y) });
+          Body.setAngularVelocity(b, 0);
+        }else{
+          const dirToCenter = (b.position.x < W/2) ? +1 : -1;
+          Body.applyForce(b, b.position, { x: 0.0032*dirToCenter, y:0.006 });
+        }
+        state.set(b.id,{t:0,y:b.position.y});
+      }
+    }
+  },250);
+}
+
+/* HUD timer */
+function updateTimerHUD(){
+  if(!running) return;
+  const elapsed=(performance.now()-startedAt)/1000;
+  const remain=Math.max(0,(RUN_TIME_MS/1000)-elapsed);
+  timerPill.textContent=`⏱ ${remain.toFixed(1)}s`;
+}
+Events.on(engine,"afterUpdate",updateTimerHUD);
+
+/* Rank UI */
+function showRank(){
+  rankListEl.innerHTML="";
+
+  arrived.forEach((r,idx)=>{
+    const row=document.createElement("div");
+    row.className="rankrow";
+    row.innerHTML=`
+      <div class="ranknum">#${idx+1}</div>
+      <div style="font-weight:950">${idx===0?"👑 ":""}${r.name}</div>
+      <div class="time">${(r.ms/1000).toFixed(2)}s</div>
+    `;
+    rankListEl.appendChild(row);
+  });
+
+  const remaining=[];
+  for(const b of ballBodies){
+    if(arrivedSet.has(b.id)) continue;
+    remaining.push({name:b.customName||"이름없음", y:b.position.y});
+  }
+  if(remaining.length){
+    remaining.sort((a,b)=>b.y-a.y);
+    remaining.forEach((r,k)=>{
+      const idx=arrived.length+k;
+      const row=document.createElement("div");
+      row.className="rankrow";
+      row.innerHTML=`
+        <div class="ranknum">#${idx+1}</div>
+        <div style="font-weight:950">${r.name} (TIME)</div>
+        <div class="time">${(RUN_TIME_MS/1000).toFixed(2)}s</div>
+      `;
+      rankListEl.appendChild(row);
+    });
+  }
+  overlay.classList.add("show");
+}
+document.getElementById("closeOverlay").addEventListener("click",()=>overlay.classList.remove("show"));
+document.getElementById("playAgain").addEventListener("click",async ()=>{
+  overlay.classList.remove("show");
+  await startRound();
+});
+
+/* Round control */
+async function startRound(){
+  await ensureAudio();
+  sfxHit(0.8);
+  setTimeout(()=>sfxArrive(),130);
+
+  names = names.map(sanitizeName);
+  saveNames(names);
+  renderNameList();
+
+  overlay.classList.remove("show");
+  setupScreen.classList.add("hidden");
+
+  buildWorld();
+  spawnBalls();
+
+  arrivedSet=new Set();
+  arrived=[];
+  startedAt=performance.now();
+  running=true;
+
+  statusPill.textContent="⬇️ 하단 퍼널-무스턱";
+  timerPill.textContent="⏱ 30.0s";
+
+  startWatchdog();
+
+  if(dnfTimer) clearTimeout(dnfTimer);
+  dnfTimer=setTimeout(()=>{
+    if(!running) return;
+    running=false;
+    showRank();
+  }, RUN_TIME_MS);
+}
+
+async function restartRound(){
+  await ensureAudio();
+  running=false;
+  overlay.classList.remove("show");
+
+  buildWorld();
+  spawnBalls();
+
+  arrivedSet=new Set();
+  arrived=[];
+  startedAt=performance.now();
+  running=true;
+
+  startWatchdog();
+
+  if(dnfTimer) clearTimeout(dnfTimer);
+  dnfTimer=setTimeout(()=>{
+    if(!running) return;
+    running=false;
+    showRank();
+  }, RUN_TIME_MS);
+}
+
+/* Buttons */
+document.getElementById("start").addEventListener("click",()=>startRound());
+document.getElementById("resetGame").addEventListener("click",()=>{
+  overlay.classList.remove("show");
+  setupScreen.classList.remove("hidden");
+  buildWorld();
+});
+document.getElementById("openSetup").addEventListener("click",()=>{
+  overlay.classList.remove("show");
+  setupScreen.classList.remove("hidden");
+});
+document.getElementById("restart").addEventListener("click",()=>{
+  if(setupScreen.classList.contains("hidden")) restartRound();
+});
+
+/* Sound toggle */
+soundBtn.addEventListener("click", async ()=>{
+  await ensureAudio();
+  soundOn=!soundOn;
+  updateSoundIcon();
+  sfxHit(0.6);
+});
+
+/* 모바일 오디오 깨우기 */
+stage.addEventListener("pointerdown", async ()=>{ await ensureAudio(); }, {passive:true});
+
+/* Init */
+function resizeAndBuild(){
+  const r = stage.getBoundingClientRect();
+  W = Math.max(280, Math.floor(r.width));
+  H = Math.max(520, Math.floor(r.height));
+  render.options.width=W; render.options.height=H;
+  const pr = window.devicePixelRatio || 1;
+  render.canvas.width=W*pr; render.canvas.height=H*pr;
+  render.canvas.style.width=W+"px"; render.canvas.style.height=H+"px";
+
+  buildWorld();
+}
+resizeAndBuild();
+window.addEventListener("resize", ()=>{
+  resizeAndBuild();
+  if(running) restartRound();
+});
+</script>
+</body>
+</html>
