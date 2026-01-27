@@ -394,10 +394,15 @@ function extractMemoToBizInfo() {
     }
 
     const keyword = encodeURIComponent(title + ' ' + loca);
-    window.open('https://map.naver.com/v5/search/' + keyword, '_blank');
+  const url = 'https://map.naver.com/v5/search/' + keyword;
+
+    window.open(
+      url,
+      'naverMapWindow',
+      'width=1200,height=800,top=100,left=100,resizable=yes,scrollbars=yes'
+    );
   };
 })();
-
   
 
 </script>
