@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -39,7 +38,7 @@
     .modal ul { padding-left:20px; line-height:1.6; }
     .modal .link-button { color:#0077cc; text-decoration:underline; cursor:pointer; }
     .modal .small-note { font-size:0.9em; color:#555; }
-
+    /* field 그룹 스타일 */
     .field-group {
       display: flex;
       flex-wrap: wrap;
@@ -47,262 +46,346 @@
       margin-top: 22px;
       margin-bottom: 30px;
     }
-
     .field {
       display: flex;
       flex-direction: column;
       gap: 6px;
       align-items: flex-start;
     }
-
     .btn-group {
       display: flex;
       gap: 5px;
       margin-top: 2px;
     }
+    textarea { font-size:15px; padding:8px; border-radius:6px; border:1px solid #d7d7d7;}
 
-    textarea {
-      font-size:15px;
-      padding:8px;
-      border-radius:6px;
-      border:1px solid #d7d7d7;
-    }
-
+    /* 🔴 추가: graBtn(월별그래프)만 붉은색으로 */
     .fc .fc-graBtn-button {
-      background-color: #d93025 !important;
+      background-color: #d93025 !important; /* 구글 레드 톤 */
       color: #fff !important;
       border: none !important;
     }
-
     .fc .fc-graBtn-button:hover {
       background-color: #b1271b !important;
     }
   </style>
 </head>
 <body>
-
-<div class="header">
-  <img id="logoImg" src="logo.jpg" alt="로고">
-  <h1 id="pageTitle">로딩중... SJ</h1>
-</div>
-
-<div class="controls">
-  <label><input type="checkbox" id="showDone" /> 완료 일정 포함</label>
-
-  <div style="display:flex; gap:10px;">
-    <button id="btnNew">➕ 새 일정 등록</button>
-    <button id="btnList">📋 목록 보기</button>
-    <button id="btnMap">🗺️ 지도 보기</button>
-    <button id="btnRes">📅 예약캘린더</button>
+  <div class="header">
+    <img id="logoImg" src="logo.jpg" alt="로고">
+    <h1 id="pageTitle">로딩중... SJ</h1>
   </div>
-</div>
 
-<div id='calendar'></div>
-<div id="legend"></div>
-
-<div class="field-group">
-
-  <div class="field">
-    <label for="finalSentence"><b>Memo 1</b></label>
-    <textarea id="finalSentence" rows="7" style="width:370px;"></textarea>
-
-    <div class="btn-group">
-      <button onclick="copySentence()">복사</button>
-      <button onclick="clearSentence()">지우기</button>
-      <button onclick="saveSentence()">저장</button>
+  <div class="controls">
+    <label><input type="checkbox" id="showDone" /> 완료 일정 포함</label>
+    <div style="display:flex; gap:10px;">
+      <button id="btnNew">➕ 새 일정 등록</button>
+      <button id="btnList">📋 목록 보기</button>
+      <button id="btnMap">🗺️ 지도 보기</button>
+      <button id="btnRes">📅 예약캘린더</button>
     </div>
   </div>
 
-  <div class="field">
-    <label for="finalSentence2"><b>Memo 2</b></label>
-    <textarea id="finalSentence2" rows="7" style="width:370px;"></textarea>
+  <div id='calendar'></div>
+  <div id="legend"></div>
 
-    <div class="btn-group">
-      <button onclick="copySentence2()">복사</button>
-      <button onclick="clearSentence2()">지우기</button>
-      <button onclick="saveSentence2()">저장</button>
+  <!-- 문구 작성 상자 2개(최초 invi/ 두번째 invi2) -->
+  <div class="field-group">
+    <!-- invi용 -->
+    <div class="field">
+      <label for="finalSentence"><b>Memo 1</b></label>
+      <textarea id="finalSentence" rows="7" style="width:370px;"></textarea>
+      <div class="btn-group">
+        <button onclick="copySentence()">복사</button>
+        <button onclick="clearSentence()">지우기</button>
+        <button onclick="saveSentence()">저장</button>
+      </div>
+    </div>
+    <!-- invi2용 -->
+    <div class="field">
+      <label for="finalSentence2"><b>Memo 2</b></label>
+      <textarea id="finalSentence2" rows="7" style="width:370px;"></textarea>
+      <div class="btn-group">
+        <button onclick="copySentence2()">복사</button>
+        <button onclick="clearSentence2()">지우기</button>
+        <button onclick="saveSentence2()">저장</button>
+      </div>
     </div>
   </div>
 
-</div>
-
-<div class="modal-overlay" id="reportModal">
-  <div class="modal">
-    <button class="close-btn" onclick="closeModal()">✖</button>
-    <h2 id="modalTitle">Report</h2>
-    <div id="modalContent">불러오는 중...</div>
+  <div class="modal-overlay" id="reportModal">
+    <div class="modal">
+      <button class="close-btn" onclick="closeModal()">✖</button>
+      <h2 id="modalTitle">Report</h2>
+      <div id="modalContent">불러오는 중...</div>
+    </div>
   </div>
-</div>
 
+<!-- 복사 Toast 메시지 -->
 <div id="toast" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#0cb5cf;color:white;padding:10px 20px;border-radius:6px;opacity:0;transition:opacity 0.3s.ease;z-index:9999;">
   복사되었습니다!
 </div>
 
+
 <script>
+  // ✅ 핵심 수정: supabase(전역 라이브러리 이름)와 겹치지 않게 클라이언트 변수명을 변경
+  const sb = window.supabase.createClient(
+    'https://xxmtxuhcdzidhrefrvwf.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4bXR4dWhjZHppZGhyZWZydndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQwODAyNTQsImV4cCI6MjA1OTY1NjI1NH0.TaCCDlJvKrif_pZY038Qkglip8h-Qqjp2w2GlKwvoVg'
+  );
 
-const sb = window.supabase.createClient(
-  'https://xxmtxuhcdzidhrefrvwf.supabase.co',
-  '여기에기존키유지'
-);
+  // URL에서 usr 파라미터 추출
+  const urlParams = new URLSearchParams(window.location.search);
+  const usrParam = urlParams.get('usr');
+  if (!usrParam) {
+    alert('유효한 사용자 파라미터(usr)가 필요합니다.');
+    throw new Error('Missing usr parameter');
+  }
 
-const urlParams = new URLSearchParams(window.location.search);
-const usrParam = urlParams.get('usr');
-
-if (!usrParam) {
-  alert('유효한 사용자 파라미터(usr)가 필요합니다.');
-  throw new Error('Missing usr parameter');
-}
 
 function showToast(msg) {
   const toast = document.getElementById('toast');
   toast.textContent = msg || '복사되었습니다!';
   toast.style.opacity = '1';
-
-  setTimeout(() => {
-    toast.style.opacity = '0';
-  }, 1000);
+  setTimeout(() => { toast.style.opacity = '0'; }, 1000);
 }
 
-let config;
 
-async function loadUserConfig() {
 
-  const { data, error } = await sb
-    .from('usr')
-    .select('b_name,name,s_table,t_table,i_table,logo')
-    .eq('uid', usrParam)
-    .single();
-
-  if (error || !data) {
-    console.error('사용자 설정 로드 에러:', error);
-    alert('사용자 설정을 불러오지 못했습니다.');
-    throw error || new Error('No user data');
+  // 사용자 설정 로드
+  let config;
+  async function loadUserConfig() {
+    const { data, error } = await sb
+      .from('usr')
+      .select('b_name,name,s_table,t_table,i_table,logo')
+      .eq('uid', usrParam)
+      .single();
+    if (error || !data) {
+      console.error('사용자 설정 로드 에러:', error);
+      alert('사용자 설정을 불러오지 못했습니다.');
+      throw error || new Error('No user data');
+    }
+    config = data;
   }
 
-  config = data;
+  // 천 단위 쉼표 함수
+  function numberWithCommas(x) {
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
+  // finalSentence 및 finalSentence2 로드/저장
+  async function loadSentence() {
+    const { data } = await sb.from(config.i_table)
+      .select('invi, invi2').order('id', { ascending: false }).limit(1);
+    if (data.length) {
+      document.getElementById('finalSentence').value = data[0].invi || '';
+      document.getElementById('finalSentence2').value = data[0].invi2 || '';
+    }
+  }
+
+
+// 최신 invi 레코드(id, invi, invi2) 가져오기
+async function getLatestInviRow() {
+  const { data } = await sb
+    .from(config.i_table)
+    .select('id, invi, invi2')
+    .order('id', { ascending: false })
+    .limit(1);
+  return data.length ? data[0] : null;
 }
 
-function numberWithCommas(x) {
-  return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+// invi 저장 (update 또는 insert)
+async function saveSentence() {
+  const text = document.getElementById('finalSentence').value;
+  const latest = await getLatestInviRow();
+  if (latest) {
+    // 최신 레코드 update
+    const { error } = await sb
+      .from(config.i_table)
+      .update({ invi: text })
+      .eq('id', latest.id);
+    if (error) alert('저장 실패:' + error.message);
+    else alert('저장 완료!');
+  } else {
+    // 데이터 없으면 새 레코드 insert
+    const { error } = await sb
+      .from(config.i_table)
+      .insert({ invi: text });
+    if (error) alert('저장 실패:' + error.message);
+    else alert('저장 완료!');
+  }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// invi2 저장 (update 또는 insert)
+async function saveSentence2() {
+  const text2 = document.getElementById('finalSentence2').value;
+  const latest = await getLatestInviRow();
+  if (latest) {
+    // 최신 레코드 update
+    const { error } = await sb
+      .from(config.i_table)
+      .update({ invi2: text2 })
+      .eq('id', latest.id);
+    if (error) alert('저장 실패:' + error.message);
+    else alert('저장 완료!');
+  } else {
+    // 데이터 없으면 새 레코드 insert
+    const { error } = await sb
+      .from(config.i_table)
+      .insert({ invi2: text2 });
+    if (error) alert('저장 실패:' + error.message);
+    else alert('저장 완료!');
+  }
+}
 
-  loadUserConfig().then(() => {
 
-    document.getElementById('logoImg').src = config.logo;
-    document.getElementById('pageTitle').textContent = `${config.b_name} 캘린더 보기`;
+  // invi 지우기/복사
+  function clearSentence() { document.getElementById('finalSentence').value = ''; }
+ 
+ function copySentence() {
+   const ta = document.getElementById('finalSentence');
+  ta.select();
+  document.execCommand('copy');
+  showToast();
+  }
 
-    const calendar = new FullCalendar.Calendar(document.getElementById('calendar'),{
+  // invi2 지우기/복사
+  function clearSentence2() { document.getElementById('finalSentence2').value = ''; }
+function copySentence2() {
+  const ta2 = document.getElementById('finalSentence2');
+  ta2.select();
+  document.execCommand('copy');
+  showToast();
+}
 
-      initialView:'dayGridMonth',
-      locale:'ko',
-      firstDay:1,
-      height:'auto',
-
-      headerToolbar:{
-        left:'prevBtn,nextBtn todayBtn',
-        center:'title',
-        right:'graBtn doneBtn'
-      },
-
-      customButtons:{
-        prevBtn:{text:'◁',click:()=>calendar.prev()},
-        nextBtn:{text:'▷',click:()=>calendar.next()},
-        todayBtn:{text:'📍 이번달',click:()=>calendar.today()},
-        graBtn:{text:'📊 월별그래프', click:()=>location.href = `gra.html?usr=${usrParam}`},
-        doneBtn:{text:'📈 월간실적',click:()=>location.href = `done.html?usr=${usrParam}`}
-      },
-
-      titleFormat:{year:'numeric',month:'long'},
-
-      dayCellContent:args=>({html:args.date.getDate().toString()}),
-
-      events:async()=>{
-
-        const chk = document.getElementById('showDone').checked;
-
-        let { data } = await sb.from(config.s_table).select('*');
-
-        if (!chk) data = data.filter(i=>!i.done);
-
-        const offs=[...new Set(data.map(i=>i.office||'기타'))];
-        const pal=['#e9fdc8','#c4f2dc','#fddd85','#f9cccc','#bbcbf6'];
-
-        const cmap={};
-
-        offs.forEach((o,i)=>cmap[o]=pal[i%pal.length]);
-
-        document.getElementById('legend').innerHTML =
-          '<strong>체험단별 색상:</strong><br>' +
-          offs.map(o=>
-            `<span class="legend-item">
-              <span class="legend-color" style="background:${cmap[o]}"></span>${o}
-            </span>`
-          ).join('');
-
-        return data.map(i=>{
-
-          let resText = '';
-
-          if (i.res_d) {
-
-            const rd = new Date(i.res_d);
-
-            const month = rd.getMonth() + 1;
-            const day = rd.getDate();
-
-            const color = i.res_c === true ? 'blue' : 'red';
-
-            resText = ` <span style="color:${color};">(${month}/${day})</span>`;
-          }
-
-          return {
-            id:i.id,
-
-            title:`${i.title} (${numberWithCommas(parseInt(i.cost)||0)}원)`,
-
-            start:i.date_s,
-
-            end:i.date_e
-              ? new Date(new Date(i.date_e).getTime()+86400000).toISOString().split('T')[0]
-              : i.date_s,
-
-            backgroundColor:i.done ? '#ccc' : cmap[i.office||'기타'],
-
-            borderColor:i.done ? '#ccc' : cmap[i.office||'기타'],
-
-            textColor:'#000',
-
-            extendedProps:{
-              id:i.id,
-              resText:resText
-            }
-          };
-        });
-      },
-
-      eventDidMount:function(info){
-
-        const titleEl = info.el.querySelector('.fc-event-title');
-
-        if(titleEl && info.event.extendedProps.resText){
-          titleEl.innerHTML += info.event.extendedProps.resText;
-        }
-      },
-
-      eventClick:info=>{
-        if(confirm('이 일정을 관리하시겠습니까?'))
-          location.href = `edit.html?id=${info.event.extendedProps.id}&usr=${usrParam}`;
-      }
+  function closeModal() {
+    const m = document.getElementById('reportModal');
+    m.classList.remove('show');
+    setTimeout(() => m.style.display = 'none', 300);
+  }
+  async function openModal(dateStr) {
+    const modal = document.getElementById('reportModal');
+    document.getElementById('modalTitle').textContent = `${config.b_name} ${dateStr} Report`;
+    document.getElementById('modalContent').innerHTML = '불러오는 중...';
+    modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('show'), 10);
+    const today = new Date(dateStr);
+    const names = ['sun','mon','tue','wed','thu','fri','sat'];
+    const now = names[today.getDay()];
+    const { data } = await sb.from(config.s_table).select('*');
+    const avail = [], dead = [], week = [];
+    const getNext = (f, d) => { const dd = new Date(f); dd.setDate(dd.getDate() + (d + 7 - dd.getDay()) % 7); return dd; };
+    const thisF = getNext(today, 5), thisS = getNext(today, 6), thisU = getNext(today, 0);
+    const nextF = new Date(thisF); nextF.setDate(thisF.getDate() + 7);
+    const nextS = new Date(thisS); nextS.setDate(thisS.getDate() + 7);
+    const nextU = new Date(thisU); nextU.setDate(thisU.getDate() + 7);
+    const inRange = (d, s, e) => d >= s && d <= e;
+    data.forEach(i => {
+      if (i.done) return;
+      const s = new Date(i.date_s), e = new Date(i.date_e);
+      if (i[now] === 'Y' && s <= today && e >= today) avail.push(i);
+      const diff = Math.ceil((e - today) / (1000*60*60*24));
+      if (diff >= 0 && diff <= 6) dead.push(i);
+      const hasCur = [thisF, thisS, thisU].some(d => inRange(d, today, e));
+      const hasNex = [nextF, nextS, nextU].some(d => inRange(d, today, e));
+      if (hasCur && !hasNex) week.push(i);
     });
+    const makeList = list => list.map(i => {
+      const mapQ = encodeURIComponent(`${i.title} ${i.loca}`);
+      const d = new Date(i.date_e), diff = Math.ceil((d - today) / (1000*60*60*24));
+      const dDay = diff === 0 ? 'D-DAY' : `D-${diff}`;
+      let resStr = '';
+      if (i.res_d) { const rd = new Date(i.res_d); rd.setHours(rd.getHours()+9); resStr = ` <span style="color:red;">예약일자: ${rd.getMonth()+1}월 ${rd.getDate()}일 ${rd.getHours()}시</span>`; }
+      const unavailable = Object.entries({sun:'일',mon:'월',tue:'화',wed:'수',thu:'목',fri:'금',sat:'토'})
+        .filter(([k,v]) => i[k] !== 'Y').map(([k,v]) => v).join(',') || '없음';
+      return `<li><strong><a href="edit.html?id=${i.id}&usr=${usrParam}" style="text-decoration:none;color:inherit;">${i.title}</a></strong> ` +
+             `(<span class="link-button" onclick="window.open('https://map.naver.com/v5/search/${mapQ}','_blank')">${i.loca}</span> / ` +
+             `${numberWithCommas(parseInt(i.cost)||0)}원${resStr})<div class="small-note">불가능요일: ${unavailable}</div>` +
+             `<div class="small-note">마감일: ${i.date_e} (${dDay})</div></li>`;
+    }).join('');
+    document.getElementById('modalContent').innerHTML =
+      `<h3>✅ 체험가능대상 (${avail.length}건)</h3><ul>${makeList(avail)}</ul>` +
+      `<h3>⏰ 마감임박 (${dead.length}건)</h3><ul>${makeList(dead)}</ul>` +
+      `<h3>🔥 이번 주말이 마지막! (${week.length}건)</h3><ul>${makeList(week)}</ul>`;
+  }
 
-    calendar.render();
+  document.addEventListener('DOMContentLoaded', () => {
+    loadUserConfig().then(() => {
+      // header 및 title 업데이트
+      document.getElementById('logoImg').src = config.logo;
+      document.getElementById('pageTitle').textContent = `${config.b_name} 캘린더 보기`;
+      document.title = `${config.b_name} 캘린더 보기`;
+      // 내비게이션 버튼 업데이트
+      document.getElementById('btnNew').onclick = () => location.href = `index.html?usr=${usrParam}`;
+      document.getElementById('btnList').onclick = () => location.href = `list.html?usr=${usrParam}`;
+      document.getElementById('btnMap').onclick = () => location.href = `map.html?usr=${usrParam}`;
+      document.getElementById('btnRes').onclick = () => location.href = `cal_res.html?usr=${usrParam}`;
+      // load final sentence 및 캘린더
+      loadSentence();
+      const calendar = new FullCalendar.Calendar(document.getElementById('calendar'),{
+        initialView:'dayGridMonth', locale:'ko', firstDay:1, height:'auto',
+        headerToolbar:{left:'prevBtn,nextBtn todayBtn',center:'title',right:'graBtn doneBtn'},
+        customButtons:{
+          prevBtn:{text:'◁',click:()=>calendar.prev()},
+          nextBtn:{text:'▷',click:()=>calendar.next()},
+          todayBtn:{text:'📍 이번달',click:()=>calendar.today()},
+          graBtn:{text:'📊 월별그래프', click:()=>location.href = `gra.html?usr=${usrParam}`},
+          doneBtn:{text:'📈 월간실적',click:()=>location.href = `done.html?usr=${usrParam}`}
+        },
+        titleFormat:{year:'numeric',month:'long'},
+        dayCellContent:args=>({html:args.date.getDate().toString()}),
 
-  }).catch(err=>console.error(err));
-});
+        /* ★ 추가: 이벤트 커스텀 렌더링 (업체명/금액 + 예약일자 색상 표기) */
+        eventContent: (arg) => {
+          const { resLabel, resColor } = arg.event.extendedProps;
+          let html = `<div style="white-space:normal;word-break:break-all;font-size:11px;padding:1px 3px;line-height:1.4;">${arg.event.title}`;
+          if (resLabel) {
+            html += ` <span style="font-weight:bold;color:${resColor};">[${resLabel}]</span>`;
+          }
+          html += `</div>`;
+          return { html };
+        },
 
+        events: async () => {
+          const chk = document.getElementById('showDone').checked;
+          let { data } = await sb.from(config.s_table).select('*');
+          if (!chk) data = data.filter(i => !i.done);
+          const offs = [...new Set(data.map(i => i.office || '기타'))];
+          const pal = ['#e9fdc8','#c4f2dc','#fddd85','#f9cccc','#bbcbf6'];
+          const cmap = {}; offs.forEach((o, i) => cmap[o] = pal[i % pal.length]);
+          document.getElementById('legend').innerHTML = '<strong>체험단별 색상:</strong><br>' + offs.map(o => `<span class="legend-item"><span class="legend-color" style="background:${cmap[o]}"></span>${o}</span>`).join('');
+
+          return data.map(i => {
+            /* ★ 예약일자(res_d) 있으면 월/일 텍스트 생성, res_c 값으로 색상 결정 */
+            let resLabel = '';
+            let resColor = '';
+            if (i.res_d) {
+              const rd = new Date(i.res_d);
+              rd.setHours(rd.getHours() + 9);
+              resLabel = `${rd.getMonth() + 1}/${rd.getDate()}`;
+              resColor = i.res_c ? '#1a6fc4' : '#cc2222'; // true=파랑, false=빨강
+            }
+
+            return {
+              id: i.id,
+              title: `${i.title} (${numberWithCommas(parseInt(i.cost) || 0)}원)`,
+              start: i.date_s,
+              end: i.date_e ? new Date(new Date(i.date_e).getTime() + 86400000).toISOString().split('T')[0] : i.date_s,
+              backgroundColor: i.done ? '#ccc' : cmap[i.office || '기타'],
+              borderColor: i.done ? '#ccc' : cmap[i.office || '기타'],
+              textColor: '#000',
+              extendedProps: { id: i.id, resLabel, resColor }
+            };
+          });
+        },
+
+        eventClick: info => { if (confirm('이 일정을 관리하시겠습니까?')) location.href = `edit.html?id=${info.event.extendedProps.id}&usr=${usrParam}`; },
+        dateClick: info => openModal(info.dateStr)
+      });
+      calendar.render();
+      document.getElementById('showDone').addEventListener('change', () => calendar.refetchEvents());
+    }).catch(err => console.error(err));
+  });
 </script>
-
 </body>
 </html>
