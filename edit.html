@@ -176,6 +176,7 @@
   </div>
 
   <button onclick="updateSchedule()">✔️ 수정 완료</button>
+  <button id="btnCal">📅 달력 보기</button>
   <button id="btnList">📋 목록 보기</button>
 <button id="btnDelete" style="background:#e74c3c; color:white; margin-top:30px;">일정삭제</button>
   <div class="modal-overlay" id="qrModal">
@@ -219,6 +220,7 @@
       document.title = `${config.b_name} 일정 관리`;
       // 목록 보기 버튼 usr 파라미터 유지
       document.getElementById('btnList').onclick = () => location.href = `list.html?usr=${usrParam}`;
+      document.getElementById('btnCal').onclick = () => location.href = `cal.html?usr=${usrParam}`;
     }
 
     function showLink() {
