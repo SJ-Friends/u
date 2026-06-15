@@ -324,33 +324,69 @@ function copySentence2() {
       loadSentence();
       const calendar = new FullCalendar.Calendar(document.getElementById('calendar'),{
         initialView:'dayGridMonth', locale:'ko', firstDay:1, height:'auto',
-        headerToolbar:{left:'prevBtn,nextBtn todayBtn',center:'title',right:'graBtn doneBtn'}, /* ← 여기: graBtn을 doneBtn 왼쪽에 */
+        headerToolbar:{left:'prevBtn,nextBtn todayBtn',center:'title',right:'graBtn doneBtn'},
         customButtons:{
           prevBtn:{text:'◁',click:()=>calendar.prev()},
           nextBtn:{text:'▷',click:()=>calendar.next()},
           todayBtn:{text:'📍 이번달',click:()=>calendar.today()},
-          /* 🔴 추가: 월별 그래프 버튼 */
           graBtn:{text:'📊 월별그래프', click:()=>location.href = `gra.html?usr=${usrParam}`},
           doneBtn:{text:'📈 월간실적',click:()=>location.href = `done.html?usr=${usrParam}`}
         },
         titleFormat:{year:'numeric',month:'long'},
         dayCellContent:args=>({html:args.date.getDate().toString()}),
-        events:async()=>{
+
+        /* ★ 추가: 이벤트 커스텀 렌더링 (업체명/금액 + 예약일자 색상 표기) */
+        eventContent: (arg) => {
+          const { resLabel, resColor } = arg.event.extendedProps;
+          let html = `<div style="white-space:normal;word-break:break-all;padding:1px 3px;line-height:1.4;">${arg.event.title}`;
+          if (resLabel) {
+            html += ` <span style="font-weight:bold;color:${resColor};">[${resLabel}]</span>`;
+          }
+          html += `</div>`;
+          return { html };
+        },
+
+        events: async () => {
           const chk = document.getElementById('showDone').checked;
           let { data } = await sb.from(config.s_table).select('*');
-          if (!chk) data = data.filter(i=>!i.done);
-          const offs=[...new Set(data.map(i=>i.office||'기타'))];
-          const pal=['#e9fdc8','#c4f2dc','#fddd85','#f9cccc','#bbcbf6'];
-          const cmap={}; offs.forEach((o,i)=>cmap[o]=pal[i%pal.length]);
-          document.getElementById('legend').innerHTML = '<strong>체험단별 색상:</strong><br>' + offs.map(o=>`<span class="legend-item"><span class="legend-color" style="background:${cmap[o]}"></span>${o}</span>`).join('');
-          return data.map(i=>({id:i.id,title:`${i.title} (${numberWithCommas(parseInt(i.cost)||0)}원)`,start:i.date_s,end:i.date_e?new Date(new Date(i.date_e).getTime()+86400000).toISOString().split('T')[0]:i.date_s,backgroundColor:i.done?'#ccc':cmap[i.office||'기타'],borderColor:i.done?'#ccc':cmap[i.office||'기타'],textColor:'#000',extendedProps:{id:i.id}}));
+          if (!chk) data = data.filter(i => !i.done);
+          const offs = [...new Set(data.map(i => i.office || '기타'))];
+          const pal = ['#e9fdc8','#c4f2dc','#fddd85','#f9cccc','#bbcbf6'];
+          const cmap = {}; offs.forEach((o, i) => cmap[o] = pal[i % pal.length]);
+          document.getElementById('legend').innerHTML = '<strong>체험단별 색상:</strong><br>' + offs.map(o => `<span class="legend-item"><span class="legend-color" style="background:${cmap[o]}"></span>${o}</span>`).join('');
+
+          return data.map(i => {
+            /* ★ 예약일자(res_d) 있으면 월/일 텍스트 생성, res_c 값으로 색상 결정 */
+            let resLabel = '';
+            let resColor = '';
+            if (i.res_d) {
+              const rd = new Date(i.res_d);
+              rd.setHours(rd.getHours() + 9);
+              const dayNames = ['일','월','화','수','목','금','토'];
+              const dayStr = dayNames[rd.getDay()];
+              resLabel = `${rd.getMonth() + 1}/${rd.getDate()}(${dayStr})`;
+              resColor = i.res_c ? '#1a6fc4' : '#cc2222'; // true=파랑, false=빨강
+            }
+
+            return {
+              id: i.id,
+              title: `${i.title} (${numberWithCommas(parseInt(i.cost) || 0)}원)`,
+              start: i.date_s,
+              end: i.date_e ? new Date(new Date(i.date_e).getTime() + 86400000).toISOString().split('T')[0] : i.date_s,
+              backgroundColor: i.done ? '#ccc' : cmap[i.office || '기타'],
+              borderColor: i.done ? '#ccc' : cmap[i.office || '기타'],
+              textColor: '#000',
+              extendedProps: { id: i.id, resLabel, resColor }
+            };
+          });
         },
-        eventClick:info=>{if(confirm('이 일정을 관리하시겠습니까?')) location.href = `edit.html?id=${info.event.extendedProps.id}&usr=${usrParam}`;},
-        dateClick:info=>openModal(info.dateStr)
+
+        eventClick: info => { if (confirm('이 일정을 관리하시겠습니까?')) location.href = `edit.html?id=${info.event.extendedProps.id}&usr=${usrParam}`; },
+        dateClick: info => openModal(info.dateStr)
       });
       calendar.render();
-      document.getElementById('showDone').addEventListener('change',()=>calendar.refetchEvents());
-    }).catch(err=>console.error(err));
+      document.getElementById('showDone').addEventListener('change', () => calendar.refetchEvents());
+    }).catch(err => console.error(err));
   });
 </script>
 </body>
