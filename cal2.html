@@ -362,7 +362,9 @@ function copySentence2() {
             if (i.res_d) {
               const rd = new Date(i.res_d);
               rd.setHours(rd.getHours() + 9);
-              resLabel = `${rd.getMonth() + 1}/${rd.getDate()}`;
+              const dayNames = ['일','월','화','수','목','금','토'];
+              const dayStr = dayNames[rd.getDay()];
+              resLabel = `${rd.getMonth() + 1}/${rd.getDate()}(${dayStr})`;
               resColor = i.res_c ? '#1a6fc4' : '#cc2222'; // true=파랑, false=빨강
             }
 
