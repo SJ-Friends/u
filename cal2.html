@@ -1,0 +1,308 @@
+```html
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>로딩 중…</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css' rel='stylesheet' />
+  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f9f9f9;
+      padding: 40px;
+      max-width: 1000px;
+      margin: auto;
+    }
+    .header { display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; }
+    .header img { height: 40px; }
+    .header h1 { margin: 0; font-size: 1.6em; }
+    .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    #calendar { background: white; border-radius: 6px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 10px; }
+    #legend { margin-top: 25px; padding: 10px; background: #fff; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); font-size: 14px; }
+    .legend-item { display: inline-block; margin-right: 15px; margin-bottom: 6px; }
+    .legend-color { display: inline-block; width: 14px; height: 14px; vertical-align: middle; border-radius: 3px; margin-right: 6px; }
+    button { padding: 8px 14px; background-color: #1d72b8; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+    button:hover { background-color: #135a96; }
+    .fc .fc-button { background-color: #1d72b8; border: none; border-radius: 6px; padding: 8px 14px; font-size: 14px; }
+    .fc .fc-button:hover { background-color: #135a96; }
+    .fc .fc-toolbar-title { font-size: 1.4em; font-weight: bold; color: #333; }
+    .modal-overlay { display: none; position: fixed; top:0; left:0; right:0; bottom:0; background-color: rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center; opacity:0; transition: opacity 0.3s ease; }
+    .modal-overlay.show { display:flex; opacity:1; }
+    .modal { position: relative; background:#fffbe6; border-radius:8px; padding:30px; max-width:700px; width:90%; max-height:90vh; overflow-y:auto; box-shadow:0 10px 25px rgba(0,0,0,0.3); animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { transform: translateY(20px); opacity:0;} to { transform: translateY(0); opacity:1;} }
+    .modal .close-btn { position:absolute; top:15px; right:20px; color:#333; background:none; border:none; font-size:24px; font-weight:bold; cursor:pointer; }
+    .modal .close-btn:hover { color:#000; }
+    .modal h2 { margin-top:0; }
+    .modal ul { padding-left:20px; line-height:1.6; }
+    .modal .link-button { color:#0077cc; text-decoration:underline; cursor:pointer; }
+    .modal .small-note { font-size:0.9em; color:#555; }
+
+    .field-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 30px;
+      margin-top: 22px;
+      margin-bottom: 30px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-start;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 5px;
+      margin-top: 2px;
+    }
+
+    textarea {
+      font-size:15px;
+      padding:8px;
+      border-radius:6px;
+      border:1px solid #d7d7d7;
+    }
+
+    .fc .fc-graBtn-button {
+      background-color: #d93025 !important;
+      color: #fff !important;
+      border: none !important;
+    }
+
+    .fc .fc-graBtn-button:hover {
+      background-color: #b1271b !important;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <img id="logoImg" src="logo.jpg" alt="로고">
+  <h1 id="pageTitle">로딩중... SJ</h1>
+</div>
+
+<div class="controls">
+  <label><input type="checkbox" id="showDone" /> 완료 일정 포함</label>
+
+  <div style="display:flex; gap:10px;">
+    <button id="btnNew">➕ 새 일정 등록</button>
+    <button id="btnList">📋 목록 보기</button>
+    <button id="btnMap">🗺️ 지도 보기</button>
+    <button id="btnRes">📅 예약캘린더</button>
+  </div>
+</div>
+
+<div id='calendar'></div>
+<div id="legend"></div>
+
+<div class="field-group">
+
+  <div class="field">
+    <label for="finalSentence"><b>Memo 1</b></label>
+    <textarea id="finalSentence" rows="7" style="width:370px;"></textarea>
+
+    <div class="btn-group">
+      <button onclick="copySentence()">복사</button>
+      <button onclick="clearSentence()">지우기</button>
+      <button onclick="saveSentence()">저장</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="finalSentence2"><b>Memo 2</b></label>
+    <textarea id="finalSentence2" rows="7" style="width:370px;"></textarea>
+
+    <div class="btn-group">
+      <button onclick="copySentence2()">복사</button>
+      <button onclick="clearSentence2()">지우기</button>
+      <button onclick="saveSentence2()">저장</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="modal-overlay" id="reportModal">
+  <div class="modal">
+    <button class="close-btn" onclick="closeModal()">✖</button>
+    <h2 id="modalTitle">Report</h2>
+    <div id="modalContent">불러오는 중...</div>
+  </div>
+</div>
+
+<div id="toast" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#0cb5cf;color:white;padding:10px 20px;border-radius:6px;opacity:0;transition:opacity 0.3s.ease;z-index:9999;">
+  복사되었습니다!
+</div>
+
+<script>
+
+const sb = window.supabase.createClient(
+  'https://xxmtxuhcdzidhrefrvwf.supabase.co',
+  '여기에기존키유지'
+);
+
+const urlParams = new URLSearchParams(window.location.search);
+const usrParam = urlParams.get('usr');
+
+if (!usrParam) {
+  alert('유효한 사용자 파라미터(usr)가 필요합니다.');
+  throw new Error('Missing usr parameter');
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg || '복사되었습니다!';
+  toast.style.opacity = '1';
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+  }, 1000);
+}
+
+let config;
+
+async function loadUserConfig() {
+
+  const { data, error } = await sb
+    .from('usr')
+    .select('b_name,name,s_table,t_table,i_table,logo')
+    .eq('uid', usrParam)
+    .single();
+
+  if (error || !data) {
+    console.error('사용자 설정 로드 에러:', error);
+    alert('사용자 설정을 불러오지 못했습니다.');
+    throw error || new Error('No user data');
+  }
+
+  config = data;
+}
+
+function numberWithCommas(x) {
+  return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+
+  loadUserConfig().then(() => {
+
+    document.getElementById('logoImg').src = config.logo;
+    document.getElementById('pageTitle').textContent = `${config.b_name} 캘린더 보기`;
+
+    const calendar = new FullCalendar.Calendar(document.getElementById('calendar'),{
+
+      initialView:'dayGridMonth',
+      locale:'ko',
+      firstDay:1,
+      height:'auto',
+
+      headerToolbar:{
+        left:'prevBtn,nextBtn todayBtn',
+        center:'title',
+        right:'graBtn doneBtn'
+      },
+
+      customButtons:{
+        prevBtn:{text:'◁',click:()=>calendar.prev()},
+        nextBtn:{text:'▷',click:()=>calendar.next()},
+        todayBtn:{text:'📍 이번달',click:()=>calendar.today()},
+        graBtn:{text:'📊 월별그래프', click:()=>location.href = `gra.html?usr=${usrParam}`},
+        doneBtn:{text:'📈 월간실적',click:()=>location.href = `done.html?usr=${usrParam}`}
+      },
+
+      titleFormat:{year:'numeric',month:'long'},
+
+      dayCellContent:args=>({html:args.date.getDate().toString()}),
+
+      events:async()=>{
+
+        const chk = document.getElementById('showDone').checked;
+
+        let { data } = await sb.from(config.s_table).select('*');
+
+        if (!chk) data = data.filter(i=>!i.done);
+
+        const offs=[...new Set(data.map(i=>i.office||'기타'))];
+        const pal=['#e9fdc8','#c4f2dc','#fddd85','#f9cccc','#bbcbf6'];
+
+        const cmap={};
+
+        offs.forEach((o,i)=>cmap[o]=pal[i%pal.length]);
+
+        document.getElementById('legend').innerHTML =
+          '<strong>체험단별 색상:</strong><br>' +
+          offs.map(o=>
+            `<span class="legend-item">
+              <span class="legend-color" style="background:${cmap[o]}"></span>${o}
+            </span>`
+          ).join('');
+
+        return data.map(i=>{
+
+          let resText = '';
+
+          if (i.res_d) {
+
+            const rd = new Date(i.res_d);
+
+            const month = rd.getMonth() + 1;
+            const day = rd.getDate();
+
+            const color = i.res_c === true ? 'blue' : 'red';
+
+            resText = ` <span style="color:${color};">(${month}/${day})</span>`;
+          }
+
+          return {
+            id:i.id,
+
+            title:`${i.title} (${numberWithCommas(parseInt(i.cost)||0)}원)`,
+
+            start:i.date_s,
+
+            end:i.date_e
+              ? new Date(new Date(i.date_e).getTime()+86400000).toISOString().split('T')[0]
+              : i.date_s,
+
+            backgroundColor:i.done ? '#ccc' : cmap[i.office||'기타'],
+
+            borderColor:i.done ? '#ccc' : cmap[i.office||'기타'],
+
+            textColor:'#000',
+
+            extendedProps:{
+              id:i.id,
+              resText:resText
+            }
+          };
+        });
+      },
+
+      eventDidMount:function(info){
+
+        const titleEl = info.el.querySelector('.fc-event-title');
+
+        if(titleEl && info.event.extendedProps.resText){
+          titleEl.innerHTML += info.event.extendedProps.resText;
+        }
+      },
+
+      eventClick:info=>{
+        if(confirm('이 일정을 관리하시겠습니까?'))
+          location.href = `edit.html?id=${info.event.extendedProps.id}&usr=${usrParam}`;
+      }
+    });
+
+    calendar.render();
+
+  }).catch(err=>console.error(err));
+});
+
+</script>
+
+</body>
+</html>
