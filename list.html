@@ -120,7 +120,7 @@
 
       let { data, error } = await sb.from(config.s_table)
         .select('*')
-        .order(sortBy, { ascending: true });
+        .order(sortBy, { ascending: false });
       if (error) return alert('데이터 불러오기 실패');
 
       if (!showDone) data = data.filter(item => !item.done);
